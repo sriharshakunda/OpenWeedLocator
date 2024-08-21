@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Real-Time Image Feed</title>
+    <script src="image_pb.js"></script> <!-- Include the generated JS file -->
+    <script>
+        async function fetchImageFeed() {
+            try {
+                const response = await fetch('image_feed.bin'); // Replace with server endpoint if necessary
+                const buffer = await response.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+
+                // Deserialize using Protobuf
+                const imageData = ImageData.deserializeBinary(bytes);
+                const image = imageData.getImage();
+                const width = imageData.getWidth();
+                const height = imageData.getHeight();
+
+                // Create a blob from the image bytes
+                const blob = new Blob([image], { type: "image/jpeg" }); // Adjust type if necessary
+                const url = URL.createObjectURL(blob);
+
+                // Display the image
+                const imgElement = document.getElementById('image');
+                imgElement.src = url;
+                imgElement.width = width;
+                imgElement.height = height;
+            } catch (error) {
+                console.error("Error fetching image feed:", error);
+            }
+        }
+
+        // Call fetchImageFeed repeatedly for real-time display
+        setInterval(fetchImageFeed, 1000); // Fetch every 1 second
+    </script>
+</head>
+<body>
+    <h1>Real-Time Image Feed</h1>
+    <img id="image" alt="Loading..." />
+</body>
+</html>
+
