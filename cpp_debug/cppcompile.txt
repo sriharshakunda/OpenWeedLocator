@@ -1,2 +1,0 @@
-g++ -o visionpipeline visionpipeline.cpp `pkg-config --cflags --libs gstreamer-1.0`
-

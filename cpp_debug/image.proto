@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-message ImageData {
-  bytes image = 1;  // Image data in bytes
-  int32 width = 2;  // Image width
-  int32 height = 3; // Image height
-  string format = 4; // Image format, e.g., "BGRx"
-}
-
