@@ -12,8 +12,17 @@ def is_raspberry_pi() -> bool:
     platform_str = platform.platform().lower()
     return 'rpi' in platform_str or 'aarch' in platform_str
 
+def is_jetson_nano() -> bool:
+    """Check if system is running on a Jetson Nano or other Jetson device"""
+    try:
+        with open("/proc/device-tree/model", "r") as f:
+            model = f.read().lower()
+            return "jetson" in model
+    except FileNotFoundError:
+        return False
+
 # Determine if we're in testing mode and import GPIO if needed
-testing = not is_raspberry_pi()
+testing = not (is_raspberry_pi() or is_jetson_nano())
 if not testing:
     from gpiozero import Button, LED
 else:
