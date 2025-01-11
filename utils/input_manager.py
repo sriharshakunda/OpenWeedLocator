@@ -22,9 +22,12 @@ def is_jetson_nano() -> bool:
         return False
 
 # Determine if we're in testing mode and import GPIO if needed
-testing = not (is_raspberry_pi() or is_jetson_nano())
-if not testing:
+
+if is_raspberry_pi():
     from gpiozero import Button, LED
+elif is_jetson_nano():
+    import Jetson.GPIO as GPIO
+    
 else:
     platform_name = platform.system() if platform.system() == "Windows" else "unrecognized"
     logger.warning(
