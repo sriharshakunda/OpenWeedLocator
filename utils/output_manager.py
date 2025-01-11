@@ -23,12 +23,22 @@ def get_platform_config() -> tuple[bool, Optional[Exception]]:
         from gpiozero import Buzzer, OutputDevice, LED
         import lgpio
         return False, lgpio.error
+    elif is_jetson_nano:
+        # Jetson Nano configuration
+        try:
+            import Jetson.GPIO as GPIO
+            return False, None  # No specific error for Jetson.GPIO
+        except ImportError as e:
+            logger.error(f"Failed to import Jetson.GPIO: {e}")
+            return True, e
 
-    is_windows = platform.system() == "Windows"
-    system_name = "Windows" if is_windows else "unrecognized"
-    logger.warning(
-        f"The system is running on a {system_name} platform. GPIO disabled. Test mode active."
-    )
+    else:
+        # Unsupported platform (e.g., Windows)
+        is_windows = platform.system() == "Windows"
+        system_name = "Windows" if is_windows else "unrecognized"
+        logger.warning(
+            f"The system is running on a {system_name} platform. GPIO disabled. Test mode active."
+        )
     return True, None
 
 testing, lgpioERROR = get_platform_config()
