@@ -30,7 +30,7 @@ class OWLError(Exception):
     def __init__(self, message: str = None, details: Dict[str, Any] = None):
         self.details = details or {}
         self.timestamp = datetime.now()
-        self.error_id = f"OWL_{self.timestamp.strftime('%Y%m%d_%H%M%S')}"
+        self.error_id = "OWL_{}".format(self.timestamp.strftime('%Y%m%d_%H%M%S'))
         super().__init__(message)
 
     @classmethod
@@ -51,20 +51,18 @@ class OWLError(Exception):
             formatting += cls.COLORS['UNDERLINE']
 
         color_code = cls.COLORS.get(color.upper(), '')
-        return f"{formatting}{color_code}{text}{cls.COLORS['RESET']}"
+        return "{}{}{}{}".format(formatting, color_code, text, cls.COLORS['RESET'])
 
     def format_error_header(self, title: str) -> str:
         """Create a standardized error header."""
         return (
-            f"\n{self.colorize(title, 'RED', bold=True)}\n"
-            f"{self.colorize(f'Error ID: {self.error_id}', 'YELLOW')}\n"
+            "\n{}{}{}\n".format(self.colorize(title, 'RED', bold=True), self.colorize("Error ID: {}".format(self.error_id), 'YELLOW'))
         )
 
     def format_section(self, title: str, content: str) -> str:
         """Create a standardized section in the error message."""
         return (
-            f"\n{self.colorize(title + ':', 'GREEN')}\n"
-            f"{content}\n"
+            "\n{}{}{}\n".format(self.colorize(title + ':', 'GREEN'), content)
         )
 
 ### HARDWARE RELATED ERRORS ###
@@ -99,7 +97,7 @@ class USBMountError(USBError):
                     self.format_error_header("USB Mount Error") +
                     self.format_section(
                         "Problem",
-                        f"Failed to mount USB device: {self.colorize(str(device), 'WHITE', bold=True)}"
+                        "Failed to mount USB device: {}".format(self.colorize(str(device), 'WHITE', bold=True))
                     ) +
                     self.format_section(
                         "Solutions",
@@ -126,7 +124,7 @@ class USBWriteError(USBError):
                     self.format_error_header("USB Write Error") +
                     self.format_section(
                         "Problem",
-                        f"Failed to write to USB device: {self.colorize(str(device), 'WHITE', bold=True)}"
+                        "Failed to write to USB device: {}".format(self.colorize(str(device), 'WHITE', bold=True))
                     ) +
                     self.format_section(
                         "Solutions",
@@ -142,7 +140,7 @@ class USBWriteError(USBError):
 class NoWritableUSBError(USBError):
     """Raised when no writable USB devices are found"""
 
-    def __init__(self, searched_paths: list[str] = None):
+    def __init__(self, searched_paths: List[str] = None):
         super().__init__(
             message=None,
             details={'searched_paths': searched_paths} if searched_paths else {}
@@ -159,7 +157,7 @@ class NoWritableUSBError(USBError):
         if searched_paths:
             message += self.format_section(
                 "Searched Locations",
-                "\n".join(f"• {path}" for path in searched_paths)
+                "\n".join("• {}".format(path) for path in searched_paths)
             )
 
         message += self.format_section(
@@ -187,7 +185,7 @@ class StorageSystemError(StorageError):
                     self.format_error_header("Storage System Compatibility Error") +
                     self.format_section(
                         "Problem",
-                        f"Storage operation not supported on {self.colorize(platform, 'WHITE', bold=True)} platform"
+                        "Storage operation not supported on {} platform".format(self.colorize(platform, 'WHITE', bold=True))
                     ) +
                     self.format_section(
                         "Required",
@@ -216,15 +214,15 @@ class OWLAlreadyRunningError(OWLProcessError):
     def get_owl_processes() -> List[ProcessInfo]:
         """Get information about running OWL processes."""
         try:
-            result = subprocess.check_output(['ps', '-eo', 'pid,command'], text=True).splitlines()
-            processes = []
-            for line in result:
-                parts = line.strip().split()
-                if 'owl.py' in line and len(parts) >= 2 and parts[0].isdigit():
-                    processes.append(ProcessInfo(pid=int(parts[0]), command=' '.join(parts[1:])))
-            return processes
-        except subprocess.CalledProcessError as e:
-            print(f"Error fetching process list: {e}")
+            result = subprocess.check_output(['ps', '-eo', 'pid,command'], universal_newlines=True).splitlines()
+            return [
+                ProcessInfo(pid=int(parts[0]), command=' '.join(parts[1:]))
+                for line in result
+                if 'owl.py' in line
+                for parts in [line.strip().split()]
+                if len(parts) >= 2 and parts[0].isdigit()
+            ]
+        except subprocess.CalledProcessError:
             return []
 
     def __init__(self, message: Optional[str] = None):
@@ -236,7 +234,7 @@ class OWLAlreadyRunningError(OWLProcessError):
         )
 
         process_list = "\n".join(
-            f"    {self.colorize(f'PID: {proc.pid}', 'WHITE', bold=True)} - Command: {proc.command}"
+            "    {} - Command: {}".format(self.colorize("PID: {}".format(proc.pid), 'WHITE', bold=True), proc.command)
             for proc in processes
         ) or "    No OWL processes found in PS output."
 
@@ -252,8 +250,11 @@ class OWLAlreadyRunningError(OWLProcessError):
                 ) +
                 self.format_section(
                     "Commands to Stop",
-                    f"    {self.colorize('kill <PID>', 'WHITE', bold=True)}  - Graceful termination\n"
-                    f"    {self.colorize('kill -9 <PID>', 'WHITE', bold=True)} - Force termination (use with caution)"
+                    "    {}  - Graceful termination\n"
+                    "    {} - Force termination (use with caution)".format(
+                        self.colorize('kill <PID>', 'WHITE', bold=True),
+                        self.colorize('kill -9 <PID>', 'WHITE', bold=True)
+                    )
                 ) +
                 self.format_section(
                     "Important Notes",
@@ -290,9 +291,9 @@ class ControllerPinError(OWLControllerError):
             self.format_error_header("GPIO Pin Error") +
             self.format_section(
                 "Pin Details",
-                f"• Name: {self.colorize(pin_name, 'WHITE', bold=True)}\n" +
-                (f"• Number: {self.colorize(f'BOARD{pin_number}', 'WHITE', bold=True)}\n" if pin_number else "") +
-                (f"• Reason: {reason}\n" if reason else "")
+                "• Name: {}\n".format(self.colorize(pin_name, 'WHITE', bold=True)) +
+                ("• Number: {}\n".format(self.colorize("BOARD{}".format(pin_number), 'WHITE', bold=True)) if pin_number else "") +
+                ("• Reason: {}\n".format(reason) if reason else "")
             ) +
             self.format_section(
                 "Common Fixes",
@@ -321,14 +322,16 @@ class ControllerConfigError(OWLControllerError):
             self.format_error_header("Controller Configuration Error") +
             self.format_section(
                 "Missing Configuration",
-                f"Required key '{self.colorize(config_key, 'WHITE', bold=True)}' "
-                f"not found in section [{self.colorize(section, 'WHITE', bold=True)}]"
+                "Required key '{}' not found in section [{}]".format(
+                    self.colorize(config_key, 'WHITE', bold=True),
+                    self.colorize(section, 'WHITE', bold=True)
+                )
             ) +
             self.format_section(
                 "Fix",
                 "1. Check your config.ini file\n"
-                f"2. Add the missing {config_key} setting in [{section}] section\n"
-                "3. Ensure the value is appropriate for your controller type"
+                "2. Add the missing {} setting in [{}] section\n"
+                "3. Ensure the value is appropriate for your controller type".format(config_key, section)
             )
         )
         self.args = (message,)
@@ -356,8 +359,8 @@ class ConfigFileError(OWLConfigError):
             self.format_error_header("Configuration File Error") +
             self.format_section(
                 "Problem",
-                f"Cannot load configuration file: {self.colorize(str(config_path), 'WHITE', bold=True)}\n"
-                f"Reason: {reason if reason else 'File not found or inaccessible'}"
+                "Cannot load configuration file: {}\n"
+                "Reason: {}".format(self.colorize(str(config_path), 'WHITE', bold=True), reason if reason else 'File not found or inaccessible')
             ) +
             self.format_section(
                 "Fix",
@@ -385,8 +388,8 @@ class ConfigSectionError(OWLConfigError):
             self.format_error_header("Missing Configuration Sections") +
             self.format_section(
                 "Problem",
-                f"Required sections missing from {self.colorize(str(config_path), 'WHITE', bold=True)}:\n" +
-                "\n".join(f"• {self.colorize(section, 'WHITE', bold=True)}"
+                "Required sections missing from {}:\n".format(self.colorize(str(config_path), 'WHITE', bold=True)) +
+                "\n".join("• {}".format(self.colorize(section, 'WHITE', bold=True))
                          for section in missing_sections)
             ) +
             self.format_section(
@@ -413,13 +416,13 @@ class ConfigKeyError(OWLConfigError):
             self.format_error_header("Missing Configuration Keys") +
             self.format_section(
                 "Problem",
-                f"Required keys missing from section [{self.colorize(section, 'WHITE', bold=True)}]:\n" +
-                "\n".join(f"• {self.colorize(key, 'WHITE', bold=True)}"
+                "Required keys missing from section [{}]:\n".format(self.colorize(section, 'WHITE', bold=True)) +
+                "\n".join("• {}".format(self.colorize(key, 'WHITE', bold=True))
                          for key in missing_keys)
             ) +
             self.format_section(
                 "Fix",
-                f"Add the missing keys to the [{section}] section of your config file"
+                "Add the missing keys to the [{}] section of your config file".format(section)
             )
         )
         self.args = (message,)
@@ -440,8 +443,11 @@ class ConfigValueError(OWLConfigError):
         for section, errors in section_errors.items():
             for key, error_msg in errors.items():
                 error_lines.append(
-                    f"[{self.colorize(section, 'WHITE', bold=True)}] "
-                    f"{self.colorize(key, 'WHITE', bold=True)} = {error_msg}"
+                    "[{}] {} = {}".format(
+                        self.colorize(section, 'WHITE', bold=True),
+                        self.colorize(key, 'WHITE', bold=True),
+                        error_msg
+                    )
                 )
 
         message = (
@@ -449,11 +455,11 @@ class ConfigValueError(OWLConfigError):
             self.format_section(
                 "Problem",
                 "The following configuration values are invalid:\n" +
-                "\n".join(f"• {line}" for line in error_lines)
+                "\n".join("• {}".format(line) for line in error_lines)
             ) +
             self.format_section(
                 "Fix",
-                f"Correct these values in your config file to be within their expected ranges"
+                "Correct these values in your config file to be within their expected ranges"
             )
         )
         self.args = (message,)
@@ -526,15 +532,15 @@ class AlgorithmError(OWLError):
     def _format_error_message(self, config: dict) -> str:
         """Format the error message with the configuration."""
         return (
-            self.format_error_header(f"Algorithm Error: {config['message']}") +
+            self.format_error_header("Algorithm Error: {}".format(config['message'])) +
             self.format_section(
                 "Algorithm",
-                f"Failed to initialize algorithm: {self.colorize(self.algorithm, 'WHITE', bold=True)}"
+                "Failed to initialize algorithm: {}".format(self.colorize(self.algorithm, 'WHITE', bold=True))
             ) +
             self.format_section(
                 "Details",
-                f"{config['details']}\n"
-                f"Original error: {self.colorize(str(self.original_error), 'WHITE')}"
+                "{}\n"
+                "Original error: {}".format(config['details'], self.colorize(str(self.original_error), 'WHITE'))
             ) +
             self.format_section(
                 "Fix",
@@ -566,7 +572,7 @@ class AlgorithmError(OWLError):
                 "Full error context",
                 extra={
                     'traceback': traceback_str,
-                    'error_class': f"{self.error_type.__module__}.{self.error_type.__name__}"
+                    'error_class': "{}.{}".format(self.error_type.__module__, self.error_type.__name__)
                 }
             )
 
@@ -595,8 +601,8 @@ class OpenCVError(OWLError):
             self.format_error_header("OpenCV (cv2) Import Error") +
             self.format_section(
                 "Problem",
-                f"Failed to import OpenCV (cv2)\n"
-                f"Error: {self.colorize(str(error_msg), 'WHITE', bold=True)}"
+                "Failed to import OpenCV (cv2)\n"
+                "Error: {}".format(self.colorize(str(error_msg), 'WHITE', bold=True))
             ) +
             self.format_section(
                 "Likely Cause",
@@ -605,19 +611,24 @@ class OpenCVError(OWLError):
             self.format_section(
                 "Solution",
                 "1. Activate the owl virtual environment:\n"
-                f"   {self.colorize('workon owl', 'WHITE', bold=True)}\n\n"
+                "   {}\n\n"
                 "2. If the environment doesn't exist, create it with the owl_setup.sh:\n"
-                f"   {self.colorize('bash owl_setup.sh', 'WHITE', bold=True)}\n"
+                "   {}\n"
                 "3. If opencv (cv2) is not yet installed in the environment, use owl_setup.sh:\n"
-                f"   {self.colorize('bash owl_setup.sh', 'WHITE', bold=True)}\n"
-                f"3. or install it manually within the {self.colorize('(owl)', 'GREEN', bold=True)} environment:\n"
-                f"   {self.colorize('pip install opencv-python', 'WHITE', bold=True)}\n"
+                "   {}\n"
+                "3. or install it manually within the {} environment:\n"
+                "   {}".format(
+                    self.colorize('workon owl', 'WHITE', bold=True),
+                    self.colorize('bash owl_setup.sh', 'WHITE', bold=True),
+                    self.colorize('bash owl_setup.sh', 'WHITE', bold=True),
+                    self.colorize('(owl)', 'GREEN', bold=True),
+                    self.colorize('pip install opencv-python', 'WHITE', bold=True)
+                )
             ) +
             self.format_section(
                 "Verify Environment",
-                f"After activation, you should see {self.colorize('(owl)', 'GREEN', bold=True)} "
-                "at the start of the command prompt.\nIf the error persists, raise an issue on the OpenWeedLocator"
-                "Github page:\nhttps://github.com/geezacoleman/OpenWeedLocator/issues"
+                "After activation, you should see {} at the start of the command prompt.\nIf the error persists, raise an issue on the OpenWeedLocator"
+                "Github page:\nhttps://github.com/geezacoleman/OpenWeedLocator/issues".format(self.colorize('(owl)', 'GREEN', bold=True))
             )
         )
 
@@ -694,28 +705,35 @@ class DependencyError(OWLError):
                 self.format_error_header("Python Package Dependency Error") +
                 self.format_section(
                     "Problem",
-                    f"Failed to import required module: {self.colorize(self.missing_module, 'WHITE', bold=True)}\n"
-                    "This usually means the package is not installed in the owl virtual environment."
+                    "Failed to import required module: {}\n"
+                    "This usually means the package is not installed in the owl virtual environment.".format(self.colorize(self.missing_module, 'WHITE', bold=True))
                 ) +
                 self.format_section(
                     "Quick Fix",
-                    f"Install the missing package:\n"
-                    f"1. Ensure you're in the owl environment:\n"
-                    f"   {self.colorize('workon owl', 'WHITE', bold=True)}\n"
-                    f"2. Install the package:\n"
-                    f"   {self.colorize(f'pip install {self.pip_package}', 'WHITE', bold=True)}"
+                    "Install the missing package:\n"
+                    "1. Ensure you're in the owl environment:\n"
+                    "   {}\n"
+                    "2. Install the package:\n"
+                    "   {}".format(
+                        self.colorize('workon owl', 'WHITE', bold=True),
+                        self.colorize('pip install {}'.format(self.pip_package), 'WHITE', bold=True)
+                    )
                 ) +
                 self.format_section(
                     "Complete Fix",
                     "Install all requirements:\n"
-                    f"1. Activate owl environment: {self.colorize('workon owl', 'WHITE', bold=True)}\n"
-                    f"2. Navigate to owl directory: {self.colorize('cd /path/to/owl', 'WHITE', bold=True)}\n"
-                    f"3. Install requirements: {self.colorize('pip install -r requirements.txt', 'WHITE', bold=True)}"
+                    "1. Activate owl environment: {}\n"
+                    "2. Navigate to owl directory: {}\n"
+                    "3. Install requirements: {}".format(
+                        self.colorize('workon owl', 'WHITE', bold=True),
+                        self.colorize('cd /path/to/owl', 'WHITE', bold=True),
+                        self.colorize('pip install -r requirements.txt', 'WHITE', bold=True)
+                    )
                 ) +
                 self.format_section(
                     "Verify Installation",
-                    f"Check if package is installed:\n"
-                    f"{self.colorize(f'pip show {self.pip_package}', 'WHITE', bold=True)}"
+                    "Check if package is installed:\n"
+                    "{}".format(self.colorize('pip show {}'.format(self.pip_package), 'WHITE', bold=True))
                 )
         )
 
@@ -725,17 +743,21 @@ class DependencyError(OWLError):
                 self.format_error_header("Local Module Import Error") +
                 self.format_section(
                     "Problem",
-                    f"Failed to import local module: {self.colorize(self.missing_module, 'WHITE', bold=True)}\n"
-                    "This usually means you're not in the correct directory or the file is missing."
+                    "Failed to import local module: {}\n"
+                    "This usually means you're not in the correct directory or the file is missing.".format(self.colorize(self.missing_module, 'WHITE', bold=True))
                 ) +
                 self.format_section(
                     "Solution",
                     "1. Ensure you're in the owl environment:\n"
-                    f"   {self.colorize('workon owl', 'WHITE', bold=True)}\n"
+                    "   {}\n"
                     "2. Navigate to the owl directory:\n"
-                    f"   {self.colorize('cd /path/to/owl', 'WHITE', bold=True)}\n"
+                    "   {}\n"
                     "3. Verify the file exists:\n"
-                    f"   {self.colorize(f'ls {self.missing_module}.py', 'WHITE', bold=True)}"
+                    "   {}".format(
+                        self.colorize('workon owl', 'WHITE', bold=True),
+                        self.colorize('cd /path/to/owl', 'WHITE', bold=True),
+                        self.colorize('ls {}.py'.format(self.missing_module), 'WHITE', bold=True)
+                    )
                 ) +
                 self.format_section(
                     "If File is Missing",
@@ -781,7 +803,7 @@ class MediaPathError(OWLError):
                 self.format_error_header("Media Path Error") +
                 self.format_section(
                     "Problem",
-                    f"Cannot access input path: {self.colorize(str(path), 'WHITE', bold=True)}"
+                    "Cannot access input path: {}".format(self.colorize(str(path), 'WHITE', bold=True))
                 ) +
                 self.format_section(
                     "Fix",
@@ -810,7 +832,7 @@ class InvalidMediaError(OWLError):
                 self.format_error_header("Invalid Media Format") +
                 self.format_section(
                     "Problem",
-                    f"File type not supported: {self.colorize(str(path), 'WHITE', bold=True)}"
+                    "File type not supported: {}".format(self.colorize(str(path), 'WHITE', bold=True))
                 ) +
                 self.format_section(
                     "Supported Formats",
@@ -841,8 +863,8 @@ class MediaInitError(OWLError):
                 self.format_error_header("Media Initialization Error") +
                 self.format_section(
                     "Problem",
-                    f"Failed to initialize media from: {self.colorize(str(path), 'WHITE', bold=True)}\n"
-                    f"Error: {original_error}"
+                    "Failed to initialize media from: {}\n"
+                    "Error: {}".format(self.colorize(str(path), 'WHITE', bold=True), original_error)
                 ) +
                 self.format_section(
                     "Fix",
@@ -871,8 +893,8 @@ class CameraNotFoundError(OWLError):
             self.format_error_header("Camera Connection Error") +
             self.format_section(
                 "Problem",
-                f"Failed to initialize camera: {self.colorize(error_type, 'WHITE', bold=True)}\n"
-                f"Error details: {original_error}"
+                "Failed to initialize camera: {}\n"
+                "Error details: {}".format(self.colorize(error_type, 'WHITE', bold=True), original_error)
             ) +
             self.format_section(
                 "Solutions",
@@ -884,9 +906,13 @@ class CameraNotFoundError(OWLError):
             ) +
             self.format_section(
                 "How to get more information",
-                f"• {self.colorize('vcgencmd get_camera', 'WHITE', bold=True)} - Check if camera is detected\n"
-                f"• {self.colorize('libcamera-hello', 'WHITE', bold=True)} - Test camera feed\n"
-                f"• {self.colorize('dmesg | grep -i camera', 'WHITE', bold=True)} - Check system logs"
+                "• {} - Check if camera is detected\n"
+                "• {} - Test camera feed\n"
+                "• {} - Check system logs".format(
+                    self.colorize('vcgencmd get_camera', 'WHITE', bold=True),
+                    self.colorize('libcamera-hello', 'WHITE', bold=True),
+                    self.colorize('dmesg | grep -i camera', 'WHITE', bold=True)
+                )
             )
         )
 
@@ -906,7 +932,7 @@ class CameraInitError(OWLError):
                 self.format_error_header("Camera Initialization Error") +
                 self.format_section(
                     "Problem",
-                    f"Failed to initialize camera\nError: {error_msg}"
+                    "Failed to initialize camera\nError: {}".format(error_msg)
                 ) +
                 self.format_section(
                     "Fix",
