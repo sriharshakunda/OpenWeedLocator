@@ -23,9 +23,9 @@ def is_jetson_nano() -> bool:
 
 # Determine if we're in testing mode and import GPIO if needed
 
-if is_raspberry_pi():
+if is_raspberry_pi() is True:
     from gpiozero import Button, LED
-elif is_jetson_nano():
+elif is_jetson_nano() is True:
     import Jetson.GPIO as GPIO
     
 else:
