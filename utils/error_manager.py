@@ -217,14 +217,14 @@ class OWLAlreadyRunningError(OWLProcessError):
         """Get information about running OWL processes."""
         try:
             result = subprocess.check_output(['ps', '-eo', 'pid,command'], text=True).splitlines()
-            return [
-                ProcessInfo(pid=int(parts[0]), command=' '.join(parts[1:]))
-                for line in result
-                if 'owl.py' in line
-                   and len(parts := line.strip().split()) >= 2
-                   and parts[0].isdigit()
-            ]
-        except subprocess.CalledProcessError:
+            processes = []
+            for line in result:
+                parts = line.strip().split()
+                if 'owl.py' in line and len(parts) >= 2 and parts[0].isdigit():
+                    processes.append(ProcessInfo(pid=int(parts[0]), command=' '.join(parts[1:])))
+            return processes
+        except subprocess.CalledProcessError as e:
+            print(f"Error fetching process list: {e}")
             return []
 
     def __init__(self, message: Optional[str] = None):
