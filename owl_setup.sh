@@ -55,16 +55,17 @@ sleep 1s
 
 # Create the owl virtual environment
 echo "[INFO] Creating the 'owl' virtual environment..."
-virtualenv --system-site-packages -p python3 owl
+mkvirtualenv --system-site-packages -p python3 owl
 check_status "Creating virtual environment 'owl'"
 
 sleep 1s
 
 # Install OpenCV in the owl virtual environment
 echo "[INFO] Installing OpenCV in the 'owl' virtual environment..."
-source $HOME/owl/bin/activate
+source $HOME/.virtualenvs/owl/bin/activate
 sleep 1s
-pip3 install opencv-contrib-python
+pip3 install opencv-python
+#pip3 install opencv-contrib-python
 check_status "Installing OpenCV"
 
 sleep 1s
