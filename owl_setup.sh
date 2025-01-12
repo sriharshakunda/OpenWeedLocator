@@ -43,10 +43,13 @@ check_status "Installing python3-virtualenv"
 pip3 install virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
-echo "export WORKON_HOME=$HOME/.virtualenvs" >> ~/.bashrc
-echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
-source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-check_status "Updating .bashrc for virtualenvwrapper"
+
+echo "export WORKON_HOME=\$HOME/.virtualenvs" >> ~/.bashrc
+echo "export PATH=\$PATH:\$HOME/.local/bin" >> ~/.bashrc
+echo "source \$HOME/.local/bin/virtualenvwrapper.sh" >> ~/.bashrc
+source ~/.bashrc
+check_status "Updating .bashrc for virtualenvwrapper (local installation)"
+
 
 sleep 1s
 
