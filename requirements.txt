@@ -4,6 +4,5 @@ numpy
 imutils
 gpiozero
 pandas
-RPi.GPIO
 tqdm
 blessed
