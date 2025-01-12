@@ -1,6 +1,6 @@
 from pathlib import Path
 from configparser import ConfigParser, Error as ConfigParserError
-from typing import Dict, Set, Tuple
+from typing import Dict, Set, Tuple, List  # Import List for type hints
 
 import logging
 import utils.error_manager as errors
@@ -114,7 +114,7 @@ class ConfigValidator:
     @classmethod
     def validate_controller(cls, config: ConfigParser) -> Tuple[bool, Dict[str, Dict[str, str]]]:
         """Validate controller configuration."""
-        controller_errors: Dict[str, Dict[str, str]] = {}  # Type hint for errors dictionary
+        controller_errors = {}  # Type hint for errors dictionary
         controller_type = config.get('Controller', 'controller_type', fallback='').lower()
 
         # Validate controller type
@@ -148,7 +148,7 @@ class ConfigValidator:
         return not bool(controller_errors), controller_errors
 
     @classmethod
-    def get_controller_requirements(cls, controller_type: str) -> Tuple[set, set]:
+    def get_controller_requirements(cls, controller_type: str) -> Tuple[Set[str], Set[str]]:
         """Get combined base and type-specific requirements for a controller."""
         base_required = cls.REQUIRED_CONFIG['Controller']['required_keys']
         base_optional = cls.REQUIRED_CONFIG['Controller']['optional_keys']
@@ -282,14 +282,14 @@ class ConfigValidator:
         return True, ""
 
     @classmethod
-    def validate_relays(cls, config: ConfigParser) -> Tuple[bool, Dict[str, Dict[str, str]], list[str]]:
+    def validate_relays(cls, config: ConfigParser) -> Tuple[bool, Dict[str, Dict[str, str]], List[str]]:
         """
         Validate relay configuration between System.relay_num and Relays section.
         Returns:
             Tuple containing:
             - bool: whether validation passed
             - Dict[str, Dict[str, str]]: nested dictionary of section -> {key: error_message}
-            - list[str]: list of warning messages
+            - List[str]: list of warning messages
         """
         try:
             relay_num = config.getint('System', 'relay_num')
@@ -425,16 +425,3 @@ class ConfigValidator:
                 validation_errors[section].update({
                     k: "Required key missing" for k in missing_keys
                 })
-
-            unknown_keys = config_keys - (required_keys | optional_keys)
-            if unknown_keys:
-                logger.warning(
-                    f"Unknown keys in section [{section}]: {', '.join(unknown_keys)}"
-                )
-
-        # Raise all validation errors at once
-        if validation_errors:
-            raise errors.ConfigValueError(validation_errors, config_path)
-
-        logger.info(f"Successfully loaded and validated config: {config_path}")
-        return config
