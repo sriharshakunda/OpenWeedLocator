@@ -283,6 +283,61 @@ class PiCameraStream:
         self.thread.join()
 
 
+# class to support GStreamer pipelines
+class GStreamerStream:
+    def __init__(self, pipeline, resolution=(640, 480)):
+        self.logger = LogManager.get_logger(__name__)
+        self.name = "GStreamerStream"
+        self.logger.info(f'Camera type: {self.name}')
+        self.resolution = resolution
+
+        # Initialize the GStreamer pipeline
+        self.stream = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+        if not self.stream.isOpened():
+            self.logger.error(f"Failed to open GStreamer pipeline: {pipeline}")
+            raise ValueError(f"Failed to open GStreamer pipeline: {pipeline}")
+
+        # Set frame dimensions
+        self.frame_width = resolution[0]
+        self.frame_height = resolution[1]
+
+        # Initialize the frame and stop event
+        self.frame = None
+        self.stop_event = Event()
+        self.thread = Thread(target=self.update, name=self.name, args=())
+        self.thread.daemon = True
+
+    def start(self):
+        self.thread.start()
+        return self
+
+    def update(self):
+        try:
+            while not self.stop_event.is_set():
+                ret, frame = self.stream.read()
+                if not ret:
+                    self.logger.error("Failed to read frame from GStreamer pipeline")
+                    self.stop_event.set()
+                    break
+
+                # Resize the frame to the specified resolution
+                frame = cv2.resize(frame, self.resolution)
+                self.frame = frame
+
+        except Exception as e:
+            self.logger.error(f"Exception in GStreamerStream update loop: {e}", exc_info=True)
+        finally:
+            self.stream.release()
+
+    def read(self):
+        # Return the most recently read frame
+        return self.frame
+
+    def stop(self):
+        self.stop_event.set()
+        self.thread.join()
+
+
 # overarching class to determine which stream to use
 class VideoStream:
     def __init__(self, src=0, resolution=(416, 320), exp_compensation=-2, **kwargs):
@@ -291,37 +346,35 @@ class VideoStream:
         self.frame_height = None
         self.frame_width = None
 
-        if self.CAMERA_VERSION == 'legacy':
+        # Check if the source is a GStreamer pipeline
+        if isinstance(src, str) and src.startswith('gst'):
+            self.stream = GStreamerStream(pipeline=src, resolution=resolution)
+        elif self.CAMERA_VERSION == 'legacy':
             self.stream = PiCameraStream(resolution=resolution, exp_compensation=exp_compensation, **kwargs)
-
         elif self.CAMERA_VERSION == 'picamera2':
             self.stream = PiCamera2Stream(src=src, resolution=resolution, exp_compensation=exp_compensation, **kwargs)
-
         elif self.CAMERA_VERSION == 'webcam':
             self.stream = WebcamStream(src=src)
-
         else:
             self.logger.error(f"Unsupported camera version: {self.CAMERA_VERSION}")
             raise ValueError(f"Unsupported camera version: {self.CAMERA_VERSION}")
 
-        # set the image dimensions directly from the frame streamed
+        # Set the image dimensions directly from the frame streamed
         self.frame_width = self.stream.frame_width
         self.frame_height = self.stream.frame_height
 
     def start(self):
-        # start the threaded video stream
+        # Start the threaded video stream
         return self.stream.start()
 
     def update(self):
-        # grab the next frame from the stream
+        # Grab the next frame from the stream
         self.stream.update()
 
     def read(self):
-        # return the current frame
+        # Return the current frame
         return self.stream.read()
 
     def stop(self):
-        # stop the thread and release any resources
+        # Stop the thread and release any resources
         self.stream.stop()
-
-

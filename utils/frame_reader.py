@@ -8,11 +8,12 @@ from utils.log_manager import LogManager
 class FrameReader:
     def __init__(self, path, resolution=(640, 480), loop_time=5):
         '''
-        FrameReader allows users to provide a directory of images, video, a single image, or a GStreamer pipeline
-        to OWL for testing and visualization purposes.
-        :param path: path to the media (single image, directory of images, video, or GStreamer pipeline)
+        FrameReader allows users to provide a directory of images, video or a single image to OWL for testing
+        and visualisation purposes.
+        :param path: path to the media (single image, directory of images or video)
         :param loop_time: the delay between image display if using a directory)
         '''
+
         self.loop_time = loop_time
         self.loop_start_time = time.time()
         self.resolution = resolution
@@ -21,16 +22,7 @@ class FrameReader:
 
         self.logger = LogManager.get_logger(__name__)
 
-        # Check if the path is a GStreamer pipeline
-        if isinstance(path, str) and path.startswith('gst'):
-            self.cam = cv2.VideoCapture(path, cv2.CAP_GSTREAMER)
-            if not self.cam.isOpened():
-                self.logger.error("Failed to open GStreamer pipeline", exc_info=True)
-                raise ValueError(f'[ERROR] Failed to open GStreamer pipeline: {path}')
-            self.input_type = "gstreamer"
-            self.single_image = False
-
-        elif os.path.isdir(path):
+        if os.path.isdir(path):
             self.files = iter(os.listdir(path))
             self.path = path
             self.cam = None
@@ -48,8 +40,8 @@ class FrameReader:
                 self.input_type = "video"
                 self.single_image = False
         else:
-            self.logger.error("Path must be a directory, file, or GStreamer pipeline", exc_info=True)
-            raise ValueError(f'[ERROR] Invalid path to image/s or GStreamer pipeline: {path}')
+            self.logger.error("Path must be a directory or a file", exc_info=True)
+            raise ValueError(f'[ERROR] Invalid path to image/s: {path}')
 
     def read(self):
         if self.single_image:
@@ -70,17 +62,10 @@ class FrameReader:
 
             return self.curr_image
 
-        elif self.input_type == "gstreamer":
-            ret, frame = self.cam.read()
-            if not ret:
-                self.logger.error("Failed to read frame from GStreamer pipeline")
-                return None
-            frame = cv2.resize(frame, self.resolution, interpolation=cv2.INTER_AREA)
-            return frame
-
         else:
             frame = self.cam.read()
             frame = cv2.resize(frame, self.resolution, interpolation=cv2.INTER_AREA)
+
             return frame
 
     def reset(self):
@@ -94,16 +79,8 @@ class FrameReader:
             self.cam.stop()
             self.cam = FileVideoStream(self.path).start()
 
-        elif self.input_type == "gstreamer":
-            # release and re-open the GStreamer pipeline
-            self.cam.release()
-            self.cam = cv2.VideoCapture(self.path, cv2.CAP_GSTREAMER)
-
         self.loop_start_time = time.time()  # reset the loop timer
 
     def stop(self):
         if not self.single_image and self.cam:
-            if self.input_type == "gstreamer":
-                self.cam.release()
-            else:
-                self.cam.stop()
+            self.cam.stop()
