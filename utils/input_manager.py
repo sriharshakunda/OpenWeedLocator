@@ -257,3 +257,25 @@ class AdvancedController:
             'brightness_min': config.getint('GreenOnBrown', 'brightness_min'),
             'brightness_max': config.getint('GreenOnBrown', 'brightness_max')
         }
+
+
+def get_jetson_version() -> str:
+    """
+    Identify the specific Jetson device by reading the hardware model.
+    Returns a string indicating the Jetson device (e.g., 'jetson-nano', 'jetson-xavier').
+    """
+    try:
+        with open("/proc/device-tree/model", "r") as f:
+            model = f.read().lower()
+            if "nano" in model:
+                return "jetson-nano"
+            elif "xavier" in model:
+                return "jetson-xavier"
+            elif "orin" in model:
+                return "jetson-orin"
+            elif "agx" in model:
+                return "jetson-agx"
+            else:
+                return "jetson-unknown"
+    except FileNotFoundError:
+        return "non-jetson"

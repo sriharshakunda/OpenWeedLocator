@@ -60,7 +60,7 @@ try:
    import imutils
    from imutils.video import FPS
 
-   from utils.input_manager import UteController, AdvancedController, get_rpi_version
+   from utils.input_manager import UteController, AdvancedController, get_jetson_version
    from utils.output_manager import RelayController, HeadlessStatusIndicator, UteStatusIndicator, AdvancedStatusIndicator
    from utils.directory_manager import DirectorySetup
    from utils.video_manager import VideoStream
