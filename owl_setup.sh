@@ -34,10 +34,13 @@ check_status "Updating .bashrc for virtualenv"
 
 # Install virtualenv and virtualenvwrapper
 echo "[INFO] Installing virtualenv and virtualenvwrapper..."
+sudo apt-get install -y python3-pip
+check_status "Installing pip3"
+
 sudo apt-get install -y python3-virtualenv
 check_status "Installing python3-virtualenv"
 
-sudo apt-get install -y python3-virtualenvwrapper
+pip3 install python3-virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
 echo "export WORKON_HOME=$HOME/.virtualenvs" >> ~/.bashrc
