@@ -137,7 +137,7 @@ class Owl:
         # setup the track bars if show_display is True
         if self.show_display:
             # create trackbars for the threshold calculation
-            self.window_ndef __ame = "Adjust Detection Thresholds"
+            self.window_name = "Adjust Detection Thresholds"
             cv2.namedWindow("Adjust Detection Thresholds", cv2.WINDOW_AUTOSIZE)
             cv2.createTrackbar("ExG-Min", self.window_name, self.exg_min, 255, nothing)
             cv2.createTrackbar("ExG-Max", self.window_name, self.exg_max, 255, nothing)
