@@ -54,11 +54,9 @@ class OWLError(Exception):
         return "{}{}{}{}".format(formatting, color_code, text, cls.COLORS['RESET'])
 
     def format_error_header(self, title: str) -> str:
-        """Create a standardized error header."""
-        print(f"Debug: title = {title}")  # Debug statement
-        print(f"Debug: error_id = {self.error_id}")  # Debug statement
+
         return (
-            "\n{}{}{}\n".format(
+            "\n{}{}\n".format(
                 self.colorize(title, 'RED', bold=True),
                 self.colorize(f"Error ID: {self.error_id}", 'YELLOW')
             )
