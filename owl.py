@@ -754,7 +754,7 @@ if __name__ == "__main__":
 
     # this is where you can change the config file default
     owl = Owl(
-        config_file='config/DAY_SENSITIVITY_1.ini',
+        config_file='~/OpenWeedLocator/config/DAY_SENSITIVITY_2.ini',
         show_display=args.show_display,
         focus=args.focus,
         input_file_or_directory=args.input
