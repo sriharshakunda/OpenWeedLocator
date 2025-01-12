@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 import sys
-
 import logging
 import argparse
 import time
@@ -37,49 +36,49 @@ logger = setup_basic_logger()
 logger.info("Starting OWL - checking imports...")
 
 try:
-   import utils.error_manager as errors
+    import utils.error_manager as errors
 except ImportError:
-   logger.critical("Cannot import from utils package! Not in correct directory.")
-   logger.critical(f"Current working directory: {os.getcwd()}")
-   print("\nERROR: Cannot import from utils package!")
-   print("This usually means you are not in the correct directory.")
-   print("\nTo fix:")
-   print("1. Ensure owl environment is active: workon owl")
-   print("2. Navigate to owl directory:        cd /home/owl/owl")
-   sys.exit(1)
+    logger.critical("Cannot import from utils package! Not in correct directory.")
+    logger.critical(f"Current working directory: {os.getcwd()}")
+    print("\nERROR: Cannot import from utils package!")
+    print("This usually means you are not in the correct directory.")
+    print("\nTo fix:")
+    print("1. Ensure owl environment is active: workon owl")
+    print("2. Navigate to owl directory:        cd /home/owl/owl")
+    sys.exit(1)
 
 try:
-   import cv2
+    import cv2
 except ImportError as e:
-   logger.error("OpenCV import failed - likely not in `owl` virtual environment")
-   logger.error(f"Error details: {str(e)}")
-   logger.error(f"Python environment: {get_python_env()}")
-   raise errors.OpenCVError(str(e)) from None
+    logger.error("OpenCV import failed - likely not in `owl` virtual environment")
+    logger.error(f"Error details: {str(e)}")
+    logger.error(f"Python environment: {get_python_env()}")
+    raise errors.OpenCVError(str(e)) from None
 
 try:
-   import imutils
-   from imutils.video import FPS
+    import imutils
+    from imutils.video import FPS
 
-   from utils.input_manager import UteController, AdvancedController, get_jetson_version
-   from utils.output_manager import RelayController, HeadlessStatusIndicator, UteStatusIndicator, AdvancedStatusIndicator
-   from utils.directory_manager import DirectorySetup
-   from utils.video_manager import VideoStream
-   from utils.image_sampler import ImageRecorder
-   from utils.algorithms import fft_blur
-   from utils.greenonbrown import GreenOnBrown
-   from utils.frame_reader import FrameReader
-   from utils.config_manager import ConfigValidator
-   from utils.log_manager import LogManager
-   import utils.error_manager as errors
-   from version import SystemInfo, VERSION
+    from utils.input_manager import UteController, AdvancedController
+    from utils.output_manager import RelayController, HeadlessStatusIndicator, UteStatusIndicator, AdvancedStatusIndicator
+    from utils.directory_manager import DirectorySetup
+    from utils.video_manager import VideoStream
+    from utils.image_sampler import ImageRecorder
+    from utils.algorithms import fft_blur
+    from utils.greenonbrown import GreenOnBrown
+    from utils.frame_reader import FrameReader
+    from utils.config_manager import ConfigValidator
+    from utils.log_manager import LogManager
+    import utils.error_manager as errors
+    from version import SystemInfo, VERSION
 
 except ImportError as e:
-   missing_module = str(e).split("'")[1]
-   logger.error(f"Failed to import required module: {missing_module}")
-   logger.error(f"Error details: {str(e)}")
-   logger.error(f"Current virtual env: {os.environ.get('VIRTUAL_ENV', 'None')}")
-   logger.error(f"Current working directory: {os.getcwd()}")
-   raise errors.DependencyError(missing_module, str(e)) from None
+    missing_module = str(e).split("'")[1]
+    logger.error(f"Failed to import required module: {missing_module}")
+    logger.error(f"Error details: {str(e)}")
+    logger.error(f"Current virtual env: {os.environ.get('VIRTUAL_ENV', 'None')}")
+    logger.error(f"Current working directory: {os.getcwd()}")
+    raise errors.DependencyError(missing_module, str(e)) from None
 
 logger.info("All required modules imported successfully")
 
@@ -90,7 +89,7 @@ class Owl:
     def __init__(self, show_display=False,
                  focus=False,
                  input_file_or_directory=None,
-                 config_file='config/DAY_SENSITIVITY_2.ini'):
+                 config_file='config/DAY_SENSITIVITY.ini'):
         # set up the logger
         log_dir = Path(os.path.join(os.path.dirname(__file__), 'logs'))
         LogManager.setup(log_dir=log_dir, log_level='INFO')
@@ -100,16 +99,17 @@ class Owl:
         self._log_system_info()
 
         # read the config file
-        self._config_path = Path(__file__).parent / config_file
+        self._config_path = Path(config_file).resolve()
+        self.logger.info(f"Loading configuration from: {self._config_path}")
+
+        if not self._config_path.exists():
+            raise errors.ConfigFileError(self._config_path, "File does not exist")
+
         try:
             self.config = ConfigValidator.load_and_validate_config(self._config_path)
         except errors.OWLConfigError as e:
             self.logger.error(f"Configuration error: {e}", exc_info=True)
             raise
-
-        self.config.read(self._config_path)
-        self.RPI_VERSION = get_rpi_version()
-        self.logger.info(msg=f'Raspberry Pi version: {self.RPI_VERSION}')
 
         # is the source a directory/file
         self.input_file_or_directory = input_file_or_directory
@@ -138,7 +138,7 @@ class Owl:
         if self.show_display:
             # create trackbars for the threshold calculation
             self.window_name = "Adjust Detection Thresholds"
-            cv2.namedWindow("Adjust Detection Thresholds", cv2.WINDOW_AUTOSIZE)
+            cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
             cv2.createTrackbar("ExG-Min", self.window_name, self.exg_min, 255, nothing)
             cv2.createTrackbar("ExG-Max", self.window_name, self.exg_max, 255, nothing)
             cv2.createTrackbar("Hue-Min", self.window_name, self.hue_min, 179, nothing)
@@ -272,22 +272,7 @@ class Owl:
 
         self.relay_vis = None
 
-        # Check which Raspberry Pi is being used and adjust the resolution accordingly.
-        # Use `cat /proc-device-tree/model` to check the model of the Raspberry Pi.
-        total_pixels = self.resolution[0] * self.resolution[1]
-
-        if (self.RPI_VERSION in ['rpi-3', 'rpi-4']) and total_pixels > (832 * 640):
-            # change here if you want to test higher resolutions, but be warned, backup your current image!
-            # the older versions of the Pi are known to 'brick' and become unusable if too high resolutions are used.
-            self.resolution = (640, 480)
-            self.logger.warning(f"Resolution {self.config.getint('Camera', 'resolution_width')}, "
-                                 f"{self.config.getint('Camera', 'resolution_height')} selected is dangerously high. ")
-        else:
-            self.logger.warning(f'High resolution, expect low framerate. Resolution set to {self.resolution[0]}x{self.resolution[1]}.')
-
-        self.frame_width = None
-        self.frame_height = None
-
+        # Initialize media source
         try:
             self.cam = self.setup_media_source(input_file_or_directory)
             self.logger.info('Media source successfully set up...')
@@ -301,8 +286,7 @@ class Owl:
         self.sensitivity = None
         self.lane_coords = {}
 
-        # add the total number of relays being controlled. This can be changed easily, but the relay_dict and physical relays would need
-        # to be updated too. Fairly straightforward, so an opportunity for more precise application
+        # add the total number of relays being controlled
         self.relay_num = self.config.getint('System', 'relay_num')
 
         # activation region limit - once weed crosses this line, relay is activated
@@ -723,15 +707,6 @@ class Owl:
             self.logger.warning(f"Failed to retrieve Python information: {e}")
 
         try:
-            rpi_info = SystemInfo.get_rpi_info()
-            if rpi_info:
-                self.logger.info(f"Hardware: {rpi_info}")
-            else:
-                self.logger.info("Raspberry Pi hardware info not available.")
-        except Exception as e:
-            self.logger.warning(f"Failed to retrieve Raspberry Pi information: {e}")
-
-        try:
             git_info = SystemInfo.get_git_info()
             if git_info:
                 self.logger.info(f"Git: branch={git_info['branch']}, commit={git_info['commit']}")
@@ -754,7 +729,7 @@ if __name__ == "__main__":
 
     # this is where you can change the config file default
     owl = Owl(
-        config_file='config/DAY_SENSITIVITY_2.ini',
+        config_file='config/DAY_SENSITIVITY.ini',
         show_display=args.show_display,
         focus=args.focus,
         input_file_or_directory=args.input
