@@ -55,7 +55,7 @@ sleep 1s
 
 # Create the owl virtual environment
 echo "[INFO] Creating the 'owl' virtual environment..."
-mkvirtualenv --system-site-packages -p python3 owl
+virtualenv --system-site-packages -p python3 owl
 check_status "Creating virtual environment 'owl'"
 
 sleep 1s
