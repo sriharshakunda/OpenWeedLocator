@@ -89,7 +89,7 @@ class Owl:
     def __init__(self, show_display=False,
                  focus=False,
                  input_file_or_directory=None,
-                 config_file='config/DAY_SENSITIVITY.ini'):
+                 config_file='config/DAY_SENSITIVITY_1.ini'):
         # set up the logger
         log_dir = Path(os.path.join(os.path.dirname(__file__), 'logs'))
         LogManager.setup(log_dir=log_dir, log_level='INFO')
@@ -729,7 +729,7 @@ if __name__ == "__main__":
 
     # this is where you can change the config file default
     owl = Owl(
-        config_file='config/DAY_SENSITIVITY.ini',
+        config_file='config/DAY_SENSITIVITY_1.ini',
         show_display=args.show_display,
         focus=args.focus,
         input_file_or_directory=args.input
