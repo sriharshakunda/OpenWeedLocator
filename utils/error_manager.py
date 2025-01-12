@@ -56,7 +56,7 @@ class OWLError(Exception):
     def format_error_header(self, title: str) -> str:
 
         return (
-            "\n{}\n{}\n"format(
+            "\n{}\n{}\n".format(
                 self.colorize(title, 'RED', bold=True),
                 self.colorize(f"Error ID: {self.error_id}", 'YELLOW')
             )
