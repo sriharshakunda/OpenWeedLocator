@@ -416,7 +416,7 @@ class RelayControl:
         if not self.testing:
             try:
                 import Jetson.GPIO as GPIO
-                self.buzzer_pin = 7  # Use BOARD pin 7 for buzzer
+                self.buzzer_pin = 32  # Use BOARD pin 7 for buzzer
                 GPIO.setup(self.buzzer_pin, GPIO.OUT)
                 self.buzzer = GPIO.PWM(self.buzzer_pin, 1000)  # 1000 Hz frequency
             except ImportError as e:
