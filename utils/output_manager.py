@@ -4,6 +4,8 @@ from utils.error_manager import OWLAlreadyRunningError
 from utils.log_manager import LogManager
 from enum import Enum
 from collections import deque
+from typing import Optional, Tuple
+
 import subprocess
 import shutil
 import time
@@ -24,21 +26,21 @@ def is_jetson_nano() -> bool:
     except FileNotFoundError:
         return False
 
-def get_platform_config():
-    """Determine platform and return testing status and GPIO error type."""
+def get_platform_config() -> Tuple[bool, Optional[Exception]]:
+    """Determine platform and return testing status and GPIO error type"""
     if is_jetson_nano():
         try:
             import Jetson.GPIO as GPIO
             return False, None  # No specific error for Jetson.GPIO
         except ImportError as e:
-            logger.error("Failed to import Jetson.GPIO: {}".format(e))
+            logger.error(f"Failed to import Jetson.GPIO: {e}")
             return True, e
     else:
         # Unsupported platform (e.g., Windows)
         is_windows = platform.system() == "Windows"
         system_name = "Windows" if is_windows else "unrecognized"
         logger.warning(
-            "The system is running on a {} platform. GPIO disabled. Test mode active.".format(system_name)
+            f"The system is running on a {system_name} platform. GPIO disabled. Test mode active."
         )
         return True, None
 
@@ -48,7 +50,7 @@ testing, gpioERROR = get_platform_config()
 if not testing:
     import Jetson.GPIO as GPIO
 
-# Test classes to run the analysis on a desktop computer if a "win32" platform is detected
+# Test classes to run the analysis on a desktop computer if GPIO is not available
 class TestRelay:
     def __init__(self, relay_number, verbose=False):
         self.relay_number = relay_number
@@ -56,11 +58,11 @@ class TestRelay:
 
     def on(self):
         if self.verbose:
-            print("[TEST] Relay {} ON".format(self.relay_number))
+            print(f"[TEST] Relay {self.relay_number} ON")
 
     def off(self):
         if self.verbose:
-            print("[TEST] Relay {} OFF".format(self.relay_number))
+            print(f"[TEST] Relay {self.relay_number} OFF")
 
 class TestBuzzer:
     def beep(self, on_time, off_time, n=1, verbose=False):
@@ -78,13 +80,13 @@ class TestLED:
 
         for i in range(n):
             if verbose:
-                print('BLINK {}'.format(self.pin))
+                print(f'BLINK {self.pin}')
 
     def on(self):
-        print('LED {} ON'.format(self.pin))
+        print(f'LED {self.pin} ON')
 
     def off(self):
-        print('LED {} OFF'.format(self.pin))
+        print(f'LED {self.pin} OFF')
 
 
 class BaseStatusIndicator:
@@ -93,7 +95,7 @@ class BaseStatusIndicator:
 
         self.save_directory = save_directory
         self.no_save = no_save
-        self.testing = True if testing else False
+        self.testing = testing
         self.storage_used = None
         self.storage_total = None
         self.update_event = Event()
@@ -156,11 +158,11 @@ class BaseStatusIndicator:
             }
             try:
                 subprocess.run(
-                    ['sudo', 'sh', '-c', 'echo {} > {}'.format(1 if state else 0, LED_PATHS[led])],
+                    ['sudo', 'sh', '-c', f'echo {1 if state else 0} > {LED_PATHS[led]}'],
                     check=True
                 )
             except subprocess.CalledProcessError as e:
-                self.logger.error("Error: Could not set {} LED. {}".format(led, e), exc_info=True)
+                self.logger.error(msg=f"Error: Could not set {led} LED. {e}", exc_info=True)
 
     def _set_led_trigger(self, led, trigger):
         if not self.testing:
@@ -170,11 +172,11 @@ class BaseStatusIndicator:
             }
             try:
                 subprocess.run(
-                    ['sudo', 'sh', '-c', 'echo {} > {}'.format(trigger, LED_TRIGGER_PATHS[led])],
+                    ['sudo', 'sh', '-c', f'echo {trigger} > {LED_TRIGGER_PATHS[led]}'],
                     check=True
                 )
             except subprocess.CalledProcessError as e:
-                self.logger.error("Error: Could not set {} trigger to {}.".format(led, trigger), exc_info=True)
+                self.logger.error(f"Error: Could not set {led} trigger to {trigger}.", exc_info=True)
 
     def _update_storage_indicator(self, percent_full):
         self.logger.warning("Called _update_storage_indicator() but it's not implemented.")
@@ -200,7 +202,7 @@ class BaseStatusIndicator:
             self._set_led_state("ACT", 0)
             self._set_led_state("PWR", 0)
         except Exception as e:
-            logger.error("Failed to clean up LEDs: {}".format(e))
+            logger.error(f"Failed to clean up LEDs: {e}")
 
 
 class HeadlessStatusIndicator(BaseStatusIndicator):
@@ -215,9 +217,9 @@ class HeadlessStatusIndicator(BaseStatusIndicator):
 class UteStatusIndicator(BaseStatusIndicator):
     def __init__(self, save_directory, record_led_pin=38, storage_led_pin=40):
         super().__init__(save_directory)
-        LED_class = TestLED if testing else lambda pin: GPIO.setup(pin, GPIO.OUT)
-        self.record_LED = LED_class(record_led_pin)
-        self.storage_LED = LED_class(storage_led_pin)
+        LED_class = TestLED if testing else GPIO
+        self.record_LED = LED_class(pin=record_led_pin)
+        self.storage_LED = LED_class(pin=storage_led_pin)
 
     def _update_storage_indicator(self, percent_full):
         if percent_full >= 0.90:
@@ -281,8 +283,8 @@ class AdvancedIndicatorState(Enum):
 class AdvancedStatusIndicator(BaseStatusIndicator):
     def __init__(self, save_directory, status_led_pin=37):
         super().__init__(save_directory)
-        LED_class = TestLED if testing else lambda pin: GPIO.setup(pin, GPIO.OUT)
-        self.led = LED_class(status_led_pin)
+        LED_class = TestLED if testing else GPIO
+        self.led = LED_class(pin=status_led_pin)
         self.state = AdvancedIndicatorState.IDLE
         self.error_queue = deque()
         self.state_lock = Lock()
@@ -340,7 +342,7 @@ class AdvancedStatusIndicator(BaseStatusIndicator):
                     self.led.off()
                     raise
                 except Exception as e:
-                    logger.error("Error in image_write_indicator: {}".format(e), exc_info=True)
+                    logger.error(f"Error in image_write_indicator: {e}", exc_info=True)
 
     def weed_detect_indicator(self):
         with self.state_lock:
@@ -352,7 +354,7 @@ class AdvancedStatusIndicator(BaseStatusIndicator):
                     self.led.off()
                     raise
                 except Exception as e:
-                    logger.error("Error in weed_detect_indicator: {}".format(e), exc_info=True)
+                    logger.error(f"Error in weed_detect_indicator: {e}", exc_info=True)
 
     def generic_notification(self):
         try:
@@ -368,7 +370,7 @@ class AdvancedStatusIndicator(BaseStatusIndicator):
             self.led.off()
             raise
         except Exception as e:
-            logger.error("Error in generic_notification: {}".format(e), exc_info=True)
+            logger.error(f"Error in generic_notification: {e}", exc_info=True)
 
     def error(self, error_code):
         self.error_code = error_code
@@ -388,7 +390,7 @@ class AdvancedStatusIndicator(BaseStatusIndicator):
         except KeyboardInterrupt:
             logger.info("[INFO] KeyboardInterrupt received in _flash_error_code. Exiting.")
         except Exception as e:
-            logger.error("Error in _flash_error_code: {}".format(e), exc_info=True)
+            logger.error(f"Error in _flash_error_code: {e}", exc_info=True)
         finally:
             self._cleanup_leds()
 
@@ -404,7 +406,7 @@ class RelayControl:
     def __init__(self, relay_dict):
         self.logger = LogManager.get_logger(__name__)
 
-        self.testing = True if testing else False
+        self.testing = testing
         self.relay_dict = relay_dict
         self.on = False
 
@@ -413,15 +415,17 @@ class RelayControl:
 
         if not self.testing:
             try:
-                self.buzzer = GPIO.setup(7, GPIO.OUT)  # Buzzer on pin 7
-            except Exception as e:
-                if isinstance(e, gpioERROR) and 'GPIO busy' in str(e):
-                    raise OWLAlreadyRunningError("OWL instance may already be running.") from e
-                else:
-                    raise
+                import Jetson.GPIO as GPIO
+                self.buzzer_pin = 7  # Use BOARD pin 7 for buzzer
+                GPIO.setup(self.buzzer_pin, GPIO.OUT)
+                self.buzzer = GPIO.PWM(self.buzzer_pin, 1000)  # 1000 Hz frequency
+            except ImportError as e:
+                logger.error(f"Failed to import Jetson.GPIO: {e}")
+                raise
 
             for relay, board_pin in self.relay_dict.items():
-                self.relay_dict[relay] = GPIO.setup(board_pin, GPIO.OUT)
+                GPIO.setup(board_pin, GPIO.OUT)
+                self.relay_dict[relay] = board_pin
 
         else:
             self.buzzer = TestBuzzer()
@@ -429,18 +433,176 @@ class RelayControl:
                 self.relay_dict[relay] = TestRelay(board_pin)
 
     def relay_on(self, relay_number, verbose=True):
-        relay = self.relay_dict[relay_number]
-        GPIO.output(relay, GPIO.HIGH)
+        if not self.testing:
+            import Jetson.GPIO as GPIO
+            GPIO.output(self.relay_dict[relay_number], GPIO.HIGH)
+        else:
+            self.relay_dict[relay_number].on()
 
         if verbose:
-            print("Relay {} ON".format(relay_number))
+            print(f"Relay {relay_number} ON")
 
     def relay_off(self, relay_number, verbose=True):
-        relay = self.relay_dict[relay_number]
-        GPIO.output(relay, GPIO.LOW)
+        if not self.testing:
+            import Jetson.GPIO as GPIO
+            GPIO.output(self.relay_dict[relay_number], GPIO.LOW)
+        else:
+            self.relay_dict[relay_number].off()
 
         if verbose:
-            print("Relay {} OFF".format(relay_number))
+            print(f"Relay {relay_number} OFF")
 
     def beep(self, duration=0.2, repeats=2):
-        for _ in range(repeats):
+        if not self.testing:
+            self.buzzer.start(50)  # 50% duty cycle
+            time.sleep(duration)
+            self.buzzer.stop()
+        else:
+            self.buzzer.beep(on_time=duration, off_time=(duration / 2), n=repeats)
+
+    def all_on(self, verbose=False):
+        for relay in self.relay_dict.keys():
+            self.relay_on(relay, verbose=verbose)
+
+    def all_off(self, verbose=False):
+        for relay in self.relay_dict.keys():
+            self.relay_off(relay, verbose=verbose)
+
+    def remove(self, relay_number):
+        self.relay_dict.pop(relay_number, None)
+
+    def clear(self):
+        self.relay_dict = {}
+
+    def stop(self):
+        self.clear()
+        self.all_off()
+
+
+# This class does the hard work of receiving detection 'jobs' and queuing them to be actuated.
+class RelayController:
+    def __init__(self, relay_dict, vis=False, status_led=None):
+        self.logger = LogManager.get_logger(__name__)
+
+        self.relay_dict = relay_dict
+        self.vis = vis
+        self.status_led = status_led
+        # Instantiate relay control with supplied relay dictionary to map to correct board pins
+        try:
+            self.relay = RelayControl(self.relay_dict)
+        except OWLAlreadyRunningError:
+            self.logger.error("Failed to initialize RelayControl: OWL is already running and using GPIO pin 7.")
+            raise
+        self.relay_queue_dict = {}
+        self.relay_condition_dict = {}
+
+        # Create a job queue and Condition() for each nozzle
+        self.logger.info("[INFO] Setting up nozzles...")
+        self.relay_vis = RelayVis(relays=len(self.relay_dict.keys()))
+        for relay_number in range(0, len(self.relay_dict)):
+            self.relay_queue_dict[relay_number] = deque(maxlen=5)
+            self.relay_condition_dict[relay_number] = Condition()
+
+            # Create the consumer threads, setDaemon and start the threads.
+            relay_thread = Thread(target=self.consumer, args=[relay_number])
+            relay_thread.setDaemon(True)
+            relay_thread.start()
+
+        time.sleep(1)
+        self.logger.info("[INFO] Nozzle setup complete. Initiating camera...")
+        self.relay.beep(duration=0.5)
+
+    def receive(self, relay, time_stamp, location=0, delay=0, duration=1):
+        """
+        This method adds a new job to specified relay queue. GPS location data etc to be added. Time stamped
+        records the true time of weed detection from main thread, which is compared to time of relay activation for accurate
+        on durations. There will be a minimum on duration of this processing speed ~ 0.3s. Will default to 0 though.
+        :param relay: relay id (zero based)
+        :param time_stamp: this is the time of detection
+        :param location: GPS functionality to be added here
+        :param delay: on delay to be added in the future
+        :param duration: duration of spray
+        """
+        input_queue_message = [relay, time_stamp, delay, duration]
+        input_queue = self.relay_queue_dict[relay]
+        input_condition = self.relay_condition_dict[relay]
+        # Notifies the consumer thread when something has been added to the queue
+        with input_condition:
+            input_queue.append(input_queue_message)
+            input_condition.notify()
+
+    def consumer(self, relay):
+        """
+        Takes only one parameter - nozzle, which enables the selection of the deque, condition from the dictionaries.
+        The consumer method is threaded for each nozzle and will wait until it is notified that a new job has been added
+        from the receive method. It will then compare the time of detection with time of spraying to activate that nozzle
+        for required length of time.
+        :param relay: relay id number
+        """
+        self.running = True
+        input_condition = self.relay_condition_dict[relay]
+        input_condition.acquire()
+        relay_on = False
+        relay_queue = self.relay_queue_dict[relay]
+
+        while self.running:
+            while relay_queue:
+                job = relay_queue.popleft()
+                input_condition.release()
+                # Check to make sure time is positive
+                onDur = 0 if (job[3] - (time.time() - job[1])) <= 0 else (job[3] - (time.time() - job[1]))
+
+                if not relay_on:
+                    time.sleep(job[2])  # Add in the delay variable
+                    self.relay.relay_on(relay, verbose=False)
+                    if self.status_led:
+                        self.status_led.blink(on_time=0.1, n=1, background=True)
+
+                    if self.vis:
+                        self.relay_vis.update(relay=relay, status=True)
+
+                    relay_on = True
+
+                try:
+                    time.sleep(onDur)
+
+                except ValueError:
+                    time.sleep(0)
+
+                input_condition.acquire()
+
+            if len(relay_queue) == 0:
+                self.relay.relay_off(relay, verbose=False)
+
+                if self.vis:
+                    self.relay_vis.update(relay=relay, status=False)
+                relay_on = False
+
+            input_condition.wait()
+
+    def stop(self):
+        self.running = False
+
+
+if __name__ == "__main__":
+    print("Starting test of status indicators...")
+
+    # Test HeadlessStatusIndicator
+    print("\nTesting HeadlessStatusIndicator...")
+    headless_indicator = HeadlessStatusIndicator(save_directory="output")
+    headless_indicator.error(3)  # Show an error with 3 flashes
+    headless_indicator.stop()
+
+    # Test UteStatusIndicator
+    print("\nTesting UteStatusIndicator...")
+    ute_indicator = UteStatusIndicator(save_directory="output", record_led_pin=38, storage_led_pin=40)
+    ute_indicator.error(4)  # Show an error with 4 flashes
+    ute_indicator.stop()
+
+    # Test AdvancedStatusIndicator
+    print("\nTesting AdvancedStatusIndicator...")
+    advanced_indicator = AdvancedStatusIndicator(save_directory="output", status_led_pin=37)
+    advanced_indicator.error(2)  # Show an error with 2 flashes
+    advanced_indicator.stop()
+
+    print("\nTest complete.")
