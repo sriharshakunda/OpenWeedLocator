@@ -8,20 +8,37 @@ import logging
 logger = logging.getLogger(__name__)
 
 def is_raspberry_pi() -> bool:
-    """Check if system is running on Raspberry Pi"""
-    platform_str = platform.platform().lower()
-    return 'rpi' in platform_str or 'aarch' in platform_str
+    """
+    Check if the system is running on a Raspberry Pi.
+    Relies on the presence of Raspberry Pi-specific hardware or files.
+    """
+    # Check for Raspberry Pi-specific hardware
+    try:
+        with open("/proc/cpuinfo", "r") as f:
+            cpuinfo = f.read()
+            return "raspberry pi" in cpuinfo.lower()
+    except FileNotFoundError:
+        pass
+
+    # Fallback: Check for ARM architecture (common for Raspberry Pi)
+    return platform.machine().lower() in ("armv7l", "aarch64")
 
 def is_jetson_nano() -> bool:
-    """Check if system is running on a Jetson Nano or other Jetson device"""
+    """
+    Check if the system is running on a Jetson Nano or other Jetson device.
+    Relies on the presence of Jetson-specific hardware or files.
+    """
+    # Check for Jetson-specific hardware
     try:
         with open("/proc/device-tree/model", "r") as f:
             model = f.read().lower()
             return "jetson" in model
     except FileNotFoundError:
-        return False
+        pass
 
-# Determine if we're in testing mode and import GPIO if needed
+    # Fallback: Check for NVIDIA-specific environment variables
+    return os.environ.get("JETSON_NANO") is not None or os.environ.get("JETSON_XAVIER") is not None
+
 
 if is_raspberry_pi() is True:
     from gpiozero import Button, LED
