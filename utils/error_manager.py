@@ -56,7 +56,7 @@ class OWLError(Exception):
     def format_error_header(self, title: str) -> str:
 
         return (
-            "\n{}{}\n".format(
+            "\n{}\n{}\n"format(
                 self.colorize(title, 'RED', bold=True),
                 self.colorize(f"Error ID: {self.error_id}", 'YELLOW')
             )
@@ -65,7 +65,7 @@ class OWLError(Exception):
     def format_section(self, title: str, content: str) -> str:
         """Create a standardized section in the error message."""
         return (
-            "\n{}{}\n".format(self.colorize(title + ':', 'GREEN'), content)
+            "\n{}\n{}\n".format(self.colorize(title + ':', 'GREEN'), content)
         )
 
 ### HARDWARE RELATED ERRORS ###
@@ -346,9 +346,7 @@ class OWLConfigError(OWLError):
 
 
 class ConfigFileError(OWLConfigError):
-    """Raised when there are issues with the config file itself"""
     def __init__(self, config_path: Path, reason: str = None):
-        # First initialize parent
         super().__init__(
             message=None,
             details={
@@ -356,9 +354,10 @@ class ConfigFileError(OWLConfigError):
                 'reason': reason
             }
         )
+        self._message = self._format_message(config_path, reason)  # Store the formatted message
 
-        # Now build message using parent's methods
-        message = (
+    def _format_message(self, config_path: Path, reason: str) -> str:
+        return (
             self.format_error_header("Configuration File Error") +
             self.format_section(
                 "Problem",
@@ -373,7 +372,9 @@ class ConfigFileError(OWLConfigError):
                 "4. Verify the file is not corrupted"
             )
         )
-        self.args = (message,)  # Update Exception's message
+
+    def __str__(self):
+        return self._message  # Return the pre-formatted message
 
 
 class ConfigSectionError(OWLConfigError):
