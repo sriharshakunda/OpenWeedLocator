@@ -62,7 +62,7 @@ sleep 1s
 
 # Install OpenCV in the owl virtual environment
 echo "[INFO] Installing OpenCV in the 'owl' virtual environment..."
-source $HOME/.virtualenvs/owl/bin/activate
+source $HOME/owl/bin/activate
 sleep 1s
 pip3 install opencv-contrib-python
 check_status "Installing OpenCV"
