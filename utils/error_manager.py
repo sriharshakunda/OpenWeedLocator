@@ -65,7 +65,7 @@ class OWLError(Exception):
     def format_section(self, title: str, content: str) -> str:
         """Create a standardized section in the error message."""
         return (
-            "\n{}{}{}\n".format(self.colorize(title + ':', 'GREEN'), content)
+            "\n{}{}\n".format(self.colorize(title + ':', 'GREEN'), content)
         )
 
 ### HARDWARE RELATED ERRORS ###
