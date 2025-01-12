@@ -341,6 +341,7 @@ class ConfigValidator:
     @classmethod
     def load_and_validate_config(cls, config_path: Path) -> ConfigParser:
         """Load and validate configuration file."""
+        logger.info(f"Loading configuration from: {config_path}")
         config = ConfigParser()
         used_pins = set()
         validation_errors = {}
@@ -348,14 +349,19 @@ class ConfigValidator:
         # File existence and parsing must still raise immediately
         # as we can't continue without a valid file
         if not config_path.exists():
+            logger.error(f"Configuration file does not exist: {config_path}")
             raise errors.ConfigFileError(config_path, "File does not exist")
 
         try:
             files_read = config.read(config_path)
             if not files_read:
+                logger.error(f"Configuration file could not be read: {config_path}")
                 raise errors.ConfigFileError(config_path, "File could not be read")
         except ConfigParserError as e:
+            logger.error(f"Error parsing configuration file: {e}")
             raise errors.ConfigFileError(config_path, f"Parse error: {str(e)}")
+
+        logger.info("Configuration file loaded successfully")
 
         # Create working copy of config requirements
         working_config = dict(cls.REQUIRED_CONFIG)
@@ -363,6 +369,7 @@ class ConfigValidator:
         # Validate controller specific rules
         is_valid, controller_errors = cls.validate_controller(config)
         if not is_valid:
+            logger.error(f"Controller validation errors: {controller_errors}")
             validation_errors.update(controller_errors)
 
         # Update controller requirements based on type
@@ -376,16 +383,19 @@ class ConfigValidator:
         # Validate algorithm
         is_valid, algorithm_errors = cls.validate_algorithm(config)
         if not is_valid:
+            logger.error(f"Algorithm validation errors: {algorithm_errors}")
             validation_errors.update(algorithm_errors)
 
         # Threshold validation
         is_valid, threshold_errors = cls.validate_thresholds(config)
         if not is_valid:
+            logger.error(f"Threshold validation errors: {threshold_errors}")
             validation_errors.update(threshold_errors)
 
         # Check required sections
         missing_sections = set(working_config.keys()) - set(config.sections())
         if missing_sections:
+            logger.error(f"Missing required sections: {missing_sections}")
             validation_errors['missing_sections'] = {
                 'sections': f"Missing required sections: {', '.join(missing_sections)}"
             }
@@ -396,13 +406,15 @@ class ConfigValidator:
             for key, value in config[section].items():
                 is_valid, error_msg = cls.validate_value(key, value, used_pins)
                 if not is_valid:
+                    logger.error(f"Validation error in section '{section}', key '{key}': {error_msg}")
                     section_errors[key] = value + f" - {error_msg}"
-            if section_errors:
-                validation_errors[section] = section_errors
+        if section_errors:
+            validation_errors[section] = section_errors
 
         # Validate relay configuration
         is_valid, relay_errors, relay_warnings = cls.validate_relays(config)
         if not is_valid:
+            logger.error(f"Relay validation errors: {relay_errors}")
             validation_errors.update(relay_errors)
 
         # Log any relay warnings
@@ -420,8 +432,17 @@ class ConfigValidator:
 
             missing_keys = required_keys - config_keys
             if missing_keys:
+                logger.error(f"Missing required keys in section '{section}': {missing_keys}")
                 if section not in validation_errors:
                     validation_errors[section] = {}
                 validation_errors[section].update({
                     k: "Required key missing" for k in missing_keys
                 })
+
+        # If there are validation errors, raise an exception
+        if validation_errors:
+            logger.error(f"Configuration validation failed with errors: {validation_errors}")
+            raise errors.ConfigValueError(validation_errors, config_path)
+
+        logger.info("Configuration validation passed successfully")
+        return config
