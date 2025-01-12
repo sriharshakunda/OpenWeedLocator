@@ -40,7 +40,7 @@ check_status "Installing pip3"
 sudo apt-get install -y python3-virtualenv
 check_status "Installing python3-virtualenv"
 
-pip3 install python3-virtualenvwrapper
+pip3 install virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
 echo "export WORKON_HOME=$HOME/.virtualenvs" >> ~/.bashrc
