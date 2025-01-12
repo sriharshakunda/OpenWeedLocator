@@ -3,6 +3,7 @@ import utils.error_manager as errors
 import platform
 import time
 import os
+from typing import List  # Import List for type hints
 
 from utils.log_manager import LogManager
 
@@ -55,7 +56,7 @@ class DirectorySetup:
 
         raise errors.NoWritableUSBError(searched_paths=[media_dir])
 
-    def _find_mounted_drives(self, media_dir: str) -> list[str]:
+    def _find_mounted_drives(self, media_dir: str) -> List[str]:  # Use List[str] for type hints
         """Find all mounted drives in the media directory."""
         mounted_drives = []
 
