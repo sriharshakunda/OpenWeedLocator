@@ -1,54 +1,26 @@
 import time
-import platform
 import configparser
 import subprocess
 import cv2
 import logging
+import Jetson.GPIO as GPIO
 
 logger = logging.getLogger(__name__)
-
-def is_raspberry_pi() -> bool:
-    """
-    Check if the system is running on a Raspberry Pi.
-    Relies on the presence of Raspberry Pi-specific hardware or files.
-    """
-    # Check for Raspberry Pi-specific hardware
-    try:
-        with open("/proc/cpuinfo", "r") as f:
-            cpuinfo = f.read()
-            return "raspberry pi" in cpuinfo.lower()
-    except FileNotFoundError:
-        pass
-
-    # Fallback: Check for ARM architecture (common for Raspberry Pi)
-    return platform.machine().lower() in ("armv7l", "aarch64")
 
 def is_jetson_nano() -> bool:
     """
     Check if the system is running on a Jetson Nano or other Jetson device.
     Relies on the presence of Jetson-specific hardware or files.
     """
-    # Check for Jetson-specific hardware
     try:
         with open("/proc/device-tree/model", "r") as f:
             model = f.read().lower()
             return "jetson" in model
     except FileNotFoundError:
-        pass
+        return False
 
-    # Fallback: Check for NVIDIA-specific environment variables
-    return os.environ.get("JETSON_NANO") is not None or os.environ.get("JETSON_XAVIER") is not None
-
-
-if is_raspberry_pi() is True:
-    from gpiozero import Button, LED
-elif is_jetson_nano() is True:
-    import Jetson.GPIO as GPIO
-    
-else:
-    platform_name = platform.system() if platform.system() == "Windows" else "unrecognized"
-    logger.warning(
-        f"The system is running on a {platform_name} platform. GPIO disabled. Test mode active.")
+# Initialize GPIO mode
+GPIO.setmode(GPIO.BOARD)  # Use BOARD pin numbering (or GPIO.BCM for BCM numbering)
 
 class UteController:
     def __init__(self, detection_state,
@@ -57,10 +29,11 @@ class UteController:
                  owl_instance,
                  status_indicator,
                  switch_purpose='recording',
-                 switch_board_pin='BOARD37',
+                 switch_board_pin=37,  # Use BOARD pin number
                  bounce_time=1.0):
 
-        self.switch = Button(switch_board_pin, bounce_time=bounce_time)
+        self.switch_pin = switch_board_pin
+        GPIO.setup(self.switch_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)  # Set up as input with pull-up
         self.switch_purpose = switch_purpose
 
         self.detection_state = detection_state
@@ -72,15 +45,11 @@ class UteController:
 
         self.stop_flag = stop_flag
 
-        # Set up a single handler for both press and release
-        self.switch.when_pressed = self.toggle_state
-        self.switch.when_released = self.toggle_state
-
         # Initialize state based on initial switch position
         self.update_state()
 
     def update_state(self):
-        is_active = self.switch.is_pressed
+        is_active = GPIO.input(self.switch_pin) == GPIO.LOW  # Active low (pressed = LOW)
 
         if self.switch_purpose == 'detection':
             with self.detection_state.get_lock():
@@ -112,7 +81,8 @@ class UteController:
     def run(self):
         try:
             while not self.stop_flag.value:
-                time.sleep(0.1)  # sleep to reduce CPU usage
+                self.update_state()  # Continuously check the switch state
+                time.sleep(0.1)  # Sleep to reduce CPU usage
         except KeyboardInterrupt:
             logger.info("[INFO] KeyboardInterrupt received in controller run loop. Exiting.")
             self.stop()  # Ensure the stop flag is set
@@ -122,6 +92,7 @@ class UteController:
     def stop(self):
         with self.stop_flag.get_lock():
             self.stop_flag.value = True
+        GPIO.cleanup(self.switch_pin)  # Clean up the GPIO pin
 
 
 class AdvancedController:
@@ -133,16 +104,22 @@ class AdvancedController:
                  status_indicator,
                  low_sensitivity_config,
                  high_sensitivity_config,
-                 detection_mode_bpin_down='BOARD35',
-                 detection_mode_bpin_up='BOARD36',
-                 recording_bpin='BOARD38',
-                 sensitivity_bpin='BOARD40',
+                 detection_mode_pin_down=35,  # Use BOARD pin number
+                 detection_mode_pin_up=36,    # Use BOARD pin number
+                 recording_pin=38,            # Use BOARD pin number
+                 sensitivity_pin=40,          # Use BOARD pin number
                  bounce_time=1.0):
 
-        self.recording_switch = Button(recording_bpin, bounce_time=bounce_time)
-        self.sensitivity_switch = Button(sensitivity_bpin, bounce_time=bounce_time)
-        self.detection_mode_switch_up = Button(detection_mode_bpin_up, bounce_time=bounce_time)
-        self.detection_mode_switch_down = Button(detection_mode_bpin_down, bounce_time=bounce_time)
+        # Set up GPIO pins
+        self.recording_pin = recording_pin
+        self.sensitivity_pin = sensitivity_pin
+        self.detection_mode_pin_up = detection_mode_pin_up
+        self.detection_mode_pin_down = detection_mode_pin_down
+
+        GPIO.setup(self.recording_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.sensitivity_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.detection_mode_pin_up, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.setup(self.detection_mode_pin_down, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
         self.recording_state = recording_state
         self.sensitivity_state = sensitivity_state
@@ -150,23 +127,13 @@ class AdvancedController:
 
         self.stop_flag = stop_flag
 
-        # set up instances for owl and status
+        # Set up instances for owl and status
         self.owl = owl_instance
         self.status_indicator = status_indicator
         self.status_indicator.start_storage_indicator()
 
         self.low_sensitivity_settings = self._read_config(low_sensitivity_config)
         self.high_sensitivity_settings = self._read_config(high_sensitivity_config)
-
-        # Set up switch handlers
-        self.recording_switch.when_pressed = self.update_recording_state
-        self.recording_switch.when_released = self.update_recording_state
-        self.sensitivity_switch.when_pressed = self.update_sensitivity_state
-        self.sensitivity_switch.when_released = self.update_sensitivity_state
-        self.detection_mode_switch_up.when_pressed = lambda: self.set_detection_mode(2)  # All solenoids on
-        self.detection_mode_switch_up.when_released = lambda: self.set_detection_mode(1)  # Off
-        self.detection_mode_switch_down.when_pressed = lambda: self.set_detection_mode(0)  # Detection on
-        self.detection_mode_switch_down.when_released = lambda: self.set_detection_mode(1)  # Off
 
         # Initialize states based on initial switch positions
         self.update_state()
@@ -183,10 +150,10 @@ class AdvancedController:
             logger.error(f"Error in update_state: {e}", exc_info=True)
 
     def update_recording_state(self):
-        self.status_indicator.generic_notification()
+        is_active = GPIO.input(self.recording_pin) == GPIO.LOW  # Active low (pressed = LOW)
         with self.recording_state.get_lock():
-            self.recording_state.value = self.recording_switch.is_pressed
-        if self.recording_state.value:
+            self.recording_state.value = is_active
+        if is_active:
             self.status_indicator.enable_image_recording()
             self.owl.sample_images = True
         else:
@@ -194,12 +161,12 @@ class AdvancedController:
             self.owl.sample_images = False
 
     def update_sensitivity_state(self):
+        is_active = GPIO.input(self.sensitivity_pin) == GPIO.LOW  # Active low (pressed = LOW)
         with self.sensitivity_state.get_lock():
-            self.sensitivity_state.value = self.sensitivity_switch.is_pressed
+            self.sensitivity_state.value = is_active
         self.update_sensitivity_settings()
 
     def update_sensitivity_settings(self):
-        self.status_indicator.generic_notification()
         settings = self.low_sensitivity_settings if self.sensitivity_state.value else self.high_sensitivity_settings
 
         # Update Owl instance settings
@@ -248,9 +215,9 @@ class AdvancedController:
             logger.error(f"Error in set_detection_mode: {e}", exc_info=True)
 
     def update_detection_mode_state(self):
-        if self.detection_mode_switch_up.is_pressed:
+        if GPIO.input(self.detection_mode_pin_up) == GPIO.LOW:
             self.set_detection_mode(2)  # All solenoids on
-        elif self.detection_mode_switch_down.is_pressed:
+        elif GPIO.input(self.detection_mode_pin_down) == GPIO.LOW:
             self.set_detection_mode(0)  # Detection on
         else:
             self.set_detection_mode(1)  # Off
@@ -264,7 +231,8 @@ class AdvancedController:
     def run(self):
         try:
             while not self.stop_flag.value:
-                time.sleep(0.1)  # sleep to reduce CPU usage
+                self.update_state()  # Continuously check the switch states
+                time.sleep(0.1)  # Sleep to reduce CPU usage
         except KeyboardInterrupt:
             logger.info("[INFO] KeyboardInterrupt received in controller run loop. Exiting.")
             self.stop()  # Ensure the stop flag is set
@@ -274,6 +242,7 @@ class AdvancedController:
     def stop(self):
         with self.stop_flag.get_lock():
             self.stop_flag.value = True
+        GPIO.cleanup([self.recording_pin, self.sensitivity_pin, self.detection_mode_pin_up, self.detection_mode_pin_down])
 
     def _read_config(self, config_file):
         config = configparser.ConfigParser()
@@ -288,25 +257,3 @@ class AdvancedController:
             'brightness_min': config.getint('GreenOnBrown', 'brightness_min'),
             'brightness_max': config.getint('GreenOnBrown', 'brightness_max')
         }
-
-def get_rpi_version():
-    try:
-        cmd = ["cat", "/proc/device-tree/model"]
-        model = subprocess.check_output(cmd).decode('utf-8').rstrip('\x00').strip()
-
-        if 'Pi 5' in model:
-            return 'rpi-5'
-        elif 'Pi 4' in model:
-            return 'rpi-4'
-        elif 'Pi 3' in model:
-            return 'rpi-3'
-        else:
-            return 'non-rpi'
-
-    except FileNotFoundError:
-        return 'non-rpi'
-    except subprocess.CalledProcessError:
-
-        raise ValueError("Error reading Raspberry Pi version.")
-
-
