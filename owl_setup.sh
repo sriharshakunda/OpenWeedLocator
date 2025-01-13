@@ -27,44 +27,41 @@ check_status "System update and upgrade"
 
 # Set up the virtual environment
 echo "[INFO] Setting up the virtual environment..."
-
-# Export necessary environment variables
-export WORKON_HOME=$HOME/.virtualenvs
-export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3
-export PATH=$PATH:$HOME/.local/bin
+echo "# virtualenv and virtualenvwrapper" >> ~/.bashrc
+echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
+source ~/.bashrc
+check_status "Updating .bashrc for virtualenv"
 
 # Install virtualenv and virtualenvwrapper
 echo "[INFO] Installing virtualenv and virtualenvwrapper..."
-sudo apt-get install -y python3-pip
-check_status "Installing pip3"
-
 sudo apt-get install -y python3-virtualenv
 check_status "Installing python3-virtualenv"
 
-pip3 install --user virtualenvwrapper
+sudo apt-get install -y python3-virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
-# Source virtualenvwrapper.sh
-if [ -f "$HOME/.local/bin/virtualenvwrapper.sh" ]; then
-  source $HOME/.local/bin/virtualenvwrapper.sh
-  check_status "Sourcing virtualenvwrapper.sh"
-else
-  echo "[ERROR] virtualenvwrapper.sh not found. Please check your installation."
-  exit 1
-fi
+echo "export WORKON_HOME=$HOME/.virtualenvs" >> ~/.bashrc
+echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
+source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+check_status "Updating .bashrc for virtualenvwrapper"
+
+sleep 1s
 
 # Create the owl virtual environment
 echo "[INFO] Creating the 'owl' virtual environment..."
 mkvirtualenv --system-site-packages -p python3 owl
 check_status "Creating virtual environment 'owl'"
 
+sleep 1s
+
 # Install OpenCV in the owl virtual environment
 echo "[INFO] Installing OpenCV in the 'owl' virtual environment..."
 source $HOME/.virtualenvs/owl/bin/activate
+sleep 1s
 sudo apt-get install libopencv-dev python3-opencv
 check_status "Installing OpenCV"
 
-deactivate
+sleep 1s
 
 # Install the OWL Python dependencies
 echo "[INFO] Installing the OWL Python dependencies..."
@@ -96,12 +93,10 @@ echo "[INFO] Adding boot script to cron..."
 (crontab -l 2>/dev/null; echo "@reboot /usr/local/bin/owl_boot_wrapper.sh > /home/launch.log 2>&1") | sudo crontab -
 check_status "Adding boot script to cron"
 
-# Set the desktop background
 echo "[INFO] Setting owl-background.png as the desktop background..."
 sed -i "/^wallpaper=/c\wallpaper=/home/$USER/owl/images/owl-background.png" ~/.config/pcmanfm/LXDE/desktop-items-0.conf
 check_status "Setting desktop background"
 
-# OWL setup complete
 echo "[INFO] OWL setup complete."
 read -p "Start OWL focusing? (y/n): " choice
 case "$choice" in
@@ -109,7 +104,6 @@ case "$choice" in
   n|N ) echo "[INFO] Focusing skipped. Run './owl.py --focus' to focus the OWL at a later point";;
   * ) echo "[ERROR] Invalid input. Please enter y or n.";;
 esac
-
 read -p "Launch OWL software? (y/n): " choice
 case "$choice" in
   y|Y ) echo "[INFO] Launching OWL..."; ./owl.py --show-display;;
