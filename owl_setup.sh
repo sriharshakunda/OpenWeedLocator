@@ -61,7 +61,7 @@ check_status "Creating virtual environment 'owl'"
 # Install OpenCV in the owl virtual environment
 echo "[INFO] Installing OpenCV in the 'owl' virtual environment..."
 source $HOME/.virtualenvs/owl/bin/activate
-pip3 install opencv-python
+sudo apt-get install libopencv-dev python3-opencv
 check_status "Installing OpenCV"
 
 deactivate
