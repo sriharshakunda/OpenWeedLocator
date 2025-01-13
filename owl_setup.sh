@@ -25,13 +25,6 @@ echo "[INFO] Updating the system and firmware..."
 sudo apt-get update && sudo apt-get upgrade -y
 check_status "System update and upgrade"
 
-
-#echo "[INFO] Setting up the virtual environment..."
-#echo "# virtualenv and virtualenvwrapper" >> ~/.bashrc
-#echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
-#source ~/.bashrc
-#check_status "Updating .bashrc for virtualenv"
-
 # Install virtualenv and virtualenvwrapper
 echo "[INFO] Installing virtualenv and virtualenvwrapper..."
 sudo apt-get install -y python3-virtualenv
@@ -41,18 +34,24 @@ pip3 install virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
 # Set up the virtual environment
-
 echo "export WORKON_HOME=\$HOME/.virtualenvs" >> ~/.bashrc
-echo "export PATH=\$PATH:\$HOME/.local/bin" >> ~/.bashrc
+echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
+echo "export VIRTUALENVWRAPPER_VIRTUALENV=\$HOME/.local/bin/virtualenv" >> ~/.bashrc
 echo "source \$HOME/.local/bin/virtualenvwrapper.sh" >> ~/.bashrc
+source ~/.bashrc
 check_status "Updating .bashrc for virtualenvwrapper (local installation)"
+
+# Verify that virtualenvwrapper is available
+if ! command -v mkvirtualenv &> /dev/null; then
+    echo "[ERROR] virtualenvwrapper is not available. Please check the installation."
+    exit 1
+fi
 
 sleep 1s
 
 # Create the owl virtual environment
-source ~/.bashrc
 echo "[INFO] Creating the 'owl' virtual environment..."
-mkvirtualenv --system-site-packages -p python3 owl
+mkvirtualenv --python=/usr/bin/python3 --system-site-packages owl
 check_status "Creating virtual environment 'owl'"
 
 sleep 1s
