@@ -38,10 +38,12 @@ echo "export WORKON_HOME=\$HOME/.virtualenvs" >> ~/.bashrc
 echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
 echo "export VIRTUALENVWRAPPER_VIRTUALENV=\$HOME/.local/bin/virtualenv" >> ~/.bashrc
 echo "source \$HOME/.local/bin/virtualenvwrapper.sh" >> ~/.bashrc
+source \$HOME/.local/bin/virtualenvwrapper.sh
 source ~/.bashrc
 check_status "Updating .bashrc for virtualenvwrapper (local installation)"
 
 # Verify that virtualenvwrapper is available
+
 if ! command -v mkvirtualenv &> /dev/null; then
     echo "[ERROR] virtualenvwrapper is not available. Please check the installation."
     exit 1
@@ -92,7 +94,7 @@ check_status "Moving owl_boot_wrapper.sh"
 
 # Add the boot script to cron for startup
 echo "[INFO] Adding boot script to cron..."
-(crontab -l 2>/dev/null; echo "@reboot /usr/local/bin/owl_boot_wrapper.sh > /home/launch.log 2>&1") | sudo crontab -
+(crontab -l 2>/dev/null; echo "@reboot /usr/local/bin/owl_boot_wrapper.sh > /home/$USER/launch.log 2>&1") | sudo crontab -
 check_status "Adding boot script to cron"
 
 echo "[INFO] Setting owl-background.png as the desktop background..."
