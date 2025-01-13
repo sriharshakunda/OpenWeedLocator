@@ -34,9 +34,9 @@ pip3 install virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
 # Set up the virtual environment
-echo "export WORKON_HOME=\$HOME/.virtualenvs" >> ~/.bashrc
+echo "export WORKON_HOME=$HOME/.virtualenvs" >> ~/.bashrc
 echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
-echo "export VIRTUALENVWRAPPER_VIRTUALENV=\$HOME/.local/bin/virtualenv" >> ~/.bashrc
+echo "export VIRTUALENVWRAPPER_VIRTUALENV=$HOME/.local/bin/virtualenv" >> ~/.bashrc
 echo "source $HOME/.local/bin/virtualenvwrapper.sh" >> ~/.bashrc
 source "$HOME/.local/bin/virtualenvwrapper.sh"
 source ~/.bashrc
