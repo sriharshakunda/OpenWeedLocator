@@ -45,12 +45,12 @@ check_status "Installing python3-virtualenvwrapper"
 echo "export WORKON_HOME=\$HOME/.virtualenvs" >> ~/.bashrc
 echo "export PATH=\$PATH:\$HOME/.local/bin" >> ~/.bashrc
 echo "source \$HOME/.local/bin/virtualenvwrapper.sh" >> ~/.bashrc
-source ~/.bashrc
 check_status "Updating .bashrc for virtualenvwrapper (local installation)"
 
 sleep 1s
 
 # Create the owl virtual environment
+source ~/.bashrc
 echo "[INFO] Creating the 'owl' virtual environment..."
 mkvirtualenv --system-site-packages -p python3 owl
 check_status "Creating virtual environment 'owl'"
