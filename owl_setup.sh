@@ -25,25 +25,28 @@ echo "[INFO] Updating the system and firmware..."
 sudo apt-get update && sudo apt-get upgrade -y
 check_status "System update and upgrade"
 
-# Set up the virtual environment
-echo "[INFO] Setting up the virtual environment..."
-echo "# virtualenv and virtualenvwrapper" >> ~/.bashrc
-echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
-source ~/.bashrc
-check_status "Updating .bashrc for virtualenv"
+
+#echo "[INFO] Setting up the virtual environment..."
+#echo "# virtualenv and virtualenvwrapper" >> ~/.bashrc
+#echo "export VIRTUALENVWRAPPER_PYTHON=/usr/bin/python3" >> ~/.bashrc
+#source ~/.bashrc
+#check_status "Updating .bashrc for virtualenv"
 
 # Install virtualenv and virtualenvwrapper
 echo "[INFO] Installing virtualenv and virtualenvwrapper..."
 sudo apt-get install -y python3-virtualenv
 check_status "Installing python3-virtualenv"
 
-sudo apt-get install -y python3-virtualenvwrapper
+pip3 install virtualenvwrapper
 check_status "Installing python3-virtualenvwrapper"
 
-echo "export WORKON_HOME=$HOME/.virtualenvs" >> ~/.bashrc
-echo "source /usr/share/virtualenvwrapper/virtualenvwrapper.sh" >> ~/.bashrc
-source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
-check_status "Updating .bashrc for virtualenvwrapper"
+# Set up the virtual environment
+
+echo "export WORKON_HOME=\$HOME/.virtualenvs" >> ~/.bashrc
+echo "export PATH=\$PATH:\$HOME/.local/bin" >> ~/.bashrc
+echo "source \$HOME/.local/bin/virtualenvwrapper.sh" >> ~/.bashrc
+source ~/.bashrc
+check_status "Updating .bashrc for virtualenvwrapper (local installation)"
 
 sleep 1s
 
