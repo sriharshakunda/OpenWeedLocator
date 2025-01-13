@@ -98,7 +98,7 @@ check_status "Adding boot script to cron"
 
 # Set the desktop background
 echo "[INFO] Setting owl-background.png as the desktop background..."
-pcmanfm --set-wallpaper ~/owl/images/owl-background.png
+sed -i "/^wallpaper=/c\wallpaper=/home/$USER/owl/images/owl-background.png" ~/.config/pcmanfm/LXDE/desktop-items-0.conf
 check_status "Setting desktop background"
 
 # OWL setup complete
