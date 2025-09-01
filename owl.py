@@ -45,7 +45,8 @@ except ImportError:
    print("This usually means you are not in the correct directory.")
    print("\nTo fix:")
    print("1. Ensure owl environment is active: workon owl")
-   print("2. Navigate to owl directory:        cd /home/owl/owl")
+   print("2. Navigate to OpenWeedLocator directory: cd /path/to/OpenWeedLocator")
+   print(f"   (You are currently in: {os.getcwd()})")
    sys.exit(1)
 
 try:
@@ -60,7 +61,7 @@ try:
    import imutils
    from imutils.video import FPS
 
-   from utils.input_manager import UteController, AdvancedController, get_rpi_version
+   from utils.input_manager import UteController, AdvancedController, get_board_version, get_platform_type, is_jetson
    from utils.output_manager import RelayController, HeadlessStatusIndicator, UteStatusIndicator, AdvancedStatusIndicator
    from utils.directory_manager import DirectorySetup
    from utils.video_manager import VideoStream
@@ -108,8 +109,13 @@ class Owl:
             raise
 
         self.config.read(self._config_path)
-        self.RPI_VERSION = get_rpi_version()
-        self.logger.info(msg=f'Raspberry Pi version: {self.RPI_VERSION}')
+        self.BOARD_VERSION = get_board_version()
+        self.PLATFORM_TYPE = get_platform_type()
+        
+        if is_jetson():
+            self.logger.info(msg=f'Jetson board version: {self.BOARD_VERSION}')
+        else:
+            self.logger.info(msg=f'Platform: {self.PLATFORM_TYPE}, Board: {self.BOARD_VERSION}')
 
         # is the source a directory/file
         self.input_file_or_directory = input_file_or_directory
@@ -151,6 +157,15 @@ class Owl:
         self.resolution = (self.config.getint('Camera', 'resolution_width'),
                            self.config.getint('Camera', 'resolution_height'))
         self.exp_compensation = self.config.getint('Camera', 'exp_compensation')
+        
+        # Arducam specific settings
+        self.arducam_exposure = self.config.getint('Camera', 'arducam_exposure', fallback=4000)
+        self.logger.info(f"DEBUG: Config loaded arducam_exposure = {self.arducam_exposure}")  # ADD THIS
+        self.arducam_green_factor = self.config.getfloat('Camera', 'arducam_green_factor', fallback=1.0)
+        self.arducam_red_factor = self.config.getfloat('Camera', 'arducam_red_factor', fallback=1.1)
+        self.arducam_blue_factor = self.config.getfloat('Camera', 'arducam_blue_factor', fallback=1.25)
+        self.arducam_brightness_alpha = self.config.getfloat('Camera', 'arducam_brightness_alpha', fallback=1.2)
+        self.arducam_brightness_beta = self.config.getfloat('Camera', 'arducam_brightness_beta', fallback=30)
 
         # Relay Dict maps the reference relay number to a boardpin on the embedded device
         self.relay_dict = {}
@@ -272,18 +287,35 @@ class Owl:
 
         self.relay_vis = None
 
-        # Check which Raspberry Pi is being used and adjust the resolution accordingly.
-        # Use `cat /proc-device-tree/model` to check the model of the Raspberry Pi.
+        # Check board capabilities and adjust resolution accordingly
         total_pixels = self.resolution[0] * self.resolution[1]
 
-        if (self.RPI_VERSION in ['rpi-3', 'rpi-4']) and total_pixels > (832 * 640):
-            # change here if you want to test higher resolutions, but be warned, backup your current image!
-            # the older versions of the Pi are known to 'brick' and become unusable if too high resolutions are used.
-            self.resolution = (640, 480)
-            self.logger.warning(f"Resolution {self.config.getint('Camera', 'resolution_width')}, "
-                                 f"{self.config.getint('Camera', 'resolution_height')} selected is dangerously high. ")
+        if is_jetson():
+            # Jetson boards can handle higher resolutions
+            if self.BOARD_VERSION.startswith('jetson-orin'):
+                # Orin series can handle high resolutions well
+                max_pixels = 1920 * 1080  # Full HD
+                if total_pixels > max_pixels:
+                    self.resolution = (1280, 720)  # 720p as fallback
+                    self.logger.warning(f"Resolution too high for stable operation, reduced to {self.resolution[0]}x{self.resolution[1]}")
+                else:
+                    self.logger.info(f'Jetson Orin: High resolution supported. Resolution set to {self.resolution[0]}x{self.resolution[1]}.')
+            else:
+                # Other Jetson boards (Xavier, Nano)
+                max_pixels = 1280 * 720  # 720p
+                if total_pixels > max_pixels:
+                    self.resolution = (640, 480)
+                    self.logger.warning(f"Resolution reduced for compatibility with {self.BOARD_VERSION}")
+                else:
+                    self.logger.info(f'Jetson board: Resolution set to {self.resolution[0]}x{self.resolution[1]}.')
         else:
-            self.logger.warning(f'High resolution, expect low framerate. Resolution set to {self.resolution[0]}x{self.resolution[1]}.')
+            # Non-Jetson platform - use conservative resolution
+            if total_pixels > (832 * 640):
+                self.resolution = (640, 480)
+                self.logger.warning(f"High resolution {self.config.getint('Camera', 'resolution_width')}x"
+                                   f"{self.config.getint('Camera', 'resolution_height')} reduced to 640x480 for compatibility.")
+            else:
+                self.logger.info(f'Resolution set to {self.resolution[0]}x{self.resolution[1]}.')
 
         self.frame_width = None
         self.frame_height = None
@@ -334,11 +366,16 @@ class Owl:
 
         try:
             if algorithm == 'gog':
-                from utils.greenongreen import GreenOnGreen
-                model_path = self.config.get('GreenOnGreen', 'model_path')
-                confidence = self.config.getfloat('GreenOnGreen', 'confidence')
+                from utils.greenongreen_jetson import GreenOnGreenJetson
+                
+                # Initialize with GreenOnGreen config section
+                weed_detector = GreenOnGreenJetson(self.config['GreenOnGreen'])
 
-                weed_detector = GreenOnGreen(model_path=model_path)
+            elif algorithm == 'gog-ml':
+                from utils.greenongreen_yolo import GreenOnGreenYOLO
+                
+                # Initialize with GreenOnGreenML config section
+                weed_detector = GreenOnGreenYOLO(self.config['GreenOnGreenML'])
 
             else:
                 min_detection_area = self.config.getint('GreenOnBrown', 'min_detection_area')
@@ -392,14 +429,50 @@ class Owl:
                     self.brightness_min = cv2.getTrackbarPos("Bright-Min", self.window_name)
                     self.brightness_max = cv2.getTrackbarPos("Bright-Max", self.window_name)
 
-                # pass image, thresholds to green_on_brown function
+                # pass image, thresholds to detection function
                 if not self.disable_detection:
                     if algorithm == 'gog':
-                        cnts, boxes, weed_centres, image_out = weed_detector.inference(
-                            frame,
-                            confidence=confidence,
-                            filter_id=63
-                        )
+                        # Use Jetson-compatible green-on-green detection
+                        detection_results = weed_detector.detect(frame)
+                        
+                        # Convert to legacy format for compatibility
+                        cnts = []
+                        boxes = []
+                        weed_centres = []
+                        
+                        for detection in detection_results['detections']:
+                            x1, y1, x2, y2 = detection['bbox']
+                            center_x, center_y = detection['center']
+                            
+                            # Create dummy contour for legacy compatibility
+                            cnts.append(None)
+                            boxes.append([x1, y1, x2-x1, y2-y1])  # x, y, width, height
+                            weed_centres.append([center_x, center_y])
+                        
+                        # Create visualization image (HSV mask)
+                        from utils.greenongreen_jetson import detect_greenongreen_hsv
+                        image_out, _, _ = detect_greenongreen_hsv(frame, self.config['GreenOnGreen'])
+                    
+                    elif algorithm == 'gog-ml':
+                        # Use YOLO-based green-on-green detection
+                        detection_results = weed_detector.detect(frame)
+                        
+                        # Convert to legacy format for compatibility
+                        cnts = []
+                        boxes = []
+                        weed_centres = []
+                        
+                        for detection in detection_results['detections']:
+                            x1, y1, x2, y2 = detection['bbox']
+                            center_x, center_y = detection['center']
+                            
+                            # Create dummy contour for legacy compatibility
+                            cnts.append(None)
+                            boxes.append([x1, y1, x2-x1, y2-y1])  # x, y, width, height
+                            weed_centres.append([center_x, center_y])
+                        
+                        # Create visualization image with bounding boxes
+                        image_out = weed_detector.visualize_detections(frame, detection_results['detections'])
                     else:
                         cnts, boxes, weed_centres, image_out = weed_detector.inference(
                             frame,
@@ -671,7 +744,13 @@ class Owl:
         # Set up camera if no file input specified
         try:
             media_source = VideoStream(resolution=self.resolution,
-                                       exp_compensation=self.exp_compensation)
+                                       exp_compensation=self.exp_compensation,
+                                       exposure=self.arducam_exposure,
+                                       green_factor=self.arducam_green_factor,
+                                       red_factor=self.arducam_red_factor,
+                                       blue_factor=self.arducam_blue_factor,
+                                       brightness_alpha=self.arducam_brightness_alpha,
+                                       brightness_beta=self.arducam_brightness_beta)
             media_source.start()
 
             self.frame_width = media_source.frame_width
@@ -723,13 +802,14 @@ class Owl:
             self.logger.warning(f"Failed to retrieve Python information: {e}")
 
         try:
-            rpi_info = SystemInfo.get_rpi_info()
-            if rpi_info:
-                self.logger.info(f"Hardware: {rpi_info}")
+            # Get hardware info based on platform
+            if is_jetson():
+                # For Jetson, we already logged the board version above
+                self.logger.info(f"Hardware: NVIDIA Jetson {self.BOARD_VERSION}")
             else:
-                self.logger.info("Raspberry Pi hardware info not available.")
+                self.logger.info(f"Hardware: {self.PLATFORM_TYPE} platform")
         except Exception as e:
-            self.logger.warning(f"Failed to retrieve Raspberry Pi information: {e}")
+            self.logger.warning(f"Failed to retrieve hardware information: {e}")
 
         try:
             git_info = SystemInfo.get_git_info()

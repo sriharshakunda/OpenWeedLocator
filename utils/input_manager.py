@@ -7,16 +7,77 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def is_raspberry_pi() -> bool:
-    """Check if system is running on Raspberry Pi"""
+def get_platform_type() -> str:
+    """Determine the hardware platform type"""
     platform_str = platform.platform().lower()
-    return 'rpi' in platform_str or 'aarch' in platform_str
+    
+    # Check for Raspberry Pi
+    if 'rpi' in platform_str:
+        return 'raspberry_pi'
+    
+    # Check for Jetson devices
+    try:
+        with open('/proc/device-tree/model', 'r') as f:
+            model = f.read().strip().lower()
+            if 'jetson' in model:
+                if 'orin' in model:
+                    if 'nano' in model:
+                        return 'jetson_orin_nano'
+                    else:
+                        return 'jetson_orin'
+                elif 'xavier' in model:
+                    return 'jetson_xavier'
+                else:
+                    return 'jetson_other'
+    except (FileNotFoundError, IOError):
+        pass
+    
+    # Fallback: check for aarch64 architecture (could be Jetson or other ARM board)
+    if 'aarch' in platform_str:
+        return 'arm_unknown'
+    
+    return 'other'
 
-# Determine if we're in testing mode and import GPIO if needed
-testing = not is_raspberry_pi()
+def is_raspberry_pi() -> bool:
+    """Check if system is running on Raspberry Pi (backward compatibility)"""
+    return get_platform_type() == 'raspberry_pi'
+
+def is_jetson() -> bool:
+    """Check if system is running on any Jetson device"""
+    platform_type = get_platform_type()
+    return platform_type.startswith('jetson_')
+
+def supports_gpio() -> bool:
+    """Check if the platform supports GPIO operations"""
+    platform_type = get_platform_type()
+    return platform_type in ['raspberry_pi', 'jetson_orin_nano', 'jetson_orin', 'jetson_xavier', 'jetson_other']
+
+# Determine platform and import appropriate GPIO library
+platform_type = get_platform_type()
+testing = not supports_gpio()
+
 if not testing:
-    from gpiozero import Button, LED
-else:
+    if platform_type == 'raspberry_pi':
+        from gpiozero import Button, LED
+        logger.info("Using gpiozero for Raspberry Pi GPIO")
+    elif is_jetson():
+        try:
+            import Jetson.GPIO as GPIO
+            from gpiozero import Button, LED
+            # Override gpiozero's pin factory to use Jetson.GPIO
+            from gpiozero.pins.jetson import JetsonNanoPin
+            from gpiozero import Device
+            Device.pin_factory = JetsonNanoPin()
+            logger.info(f"Using Jetson.GPIO for {platform_type}")
+        except (ImportError, Exception) as e:
+            logger.error(f"Failed to import Jetson.GPIO: {e}")
+            logger.warning("Falling back to test mode")
+            testing = True
+    else:
+        logger.warning(f"Unknown platform {platform_type}, falling back to test mode")
+        testing = True
+
+if testing:
     platform_name = platform.system() if platform.system() == "Windows" else "unrecognized"
     logger.warning(
         f"The system is running on a {platform_name} platform. GPIO disabled. Test mode active.")
@@ -260,24 +321,59 @@ class AdvancedController:
             'brightness_max': config.getint('GreenOnBrown', 'brightness_max')
         }
 
-def get_rpi_version():
+def get_board_version():
+    """Get the specific board version for both Raspberry Pi and Jetson devices"""
     try:
         cmd = ["cat", "/proc/device-tree/model"]
         model = subprocess.check_output(cmd).decode('utf-8').rstrip('\x00').strip()
 
+        # Check for Raspberry Pi models
         if 'Pi 5' in model:
             return 'rpi-5'
         elif 'Pi 4' in model:
             return 'rpi-4'
         elif 'Pi 3' in model:
             return 'rpi-3'
+        
+        # Check for Jetson models
+        elif 'Jetson' in model:
+            if 'Orin Nano' in model:
+                if 'Super' in model:
+                    return 'jetson-orin-nano-super'
+                else:
+                    return 'jetson-orin-nano'
+            elif 'Orin' in model:
+                return 'jetson-orin'
+            elif 'Xavier NX' in model:
+                return 'jetson-xavier-nx'
+            elif 'Xavier' in model:
+                return 'jetson-xavier'
+            elif 'Nano' in model:
+                return 'jetson-nano'
+            else:
+                return 'jetson-unknown'
         else:
             return 'non-rpi'
 
     except FileNotFoundError:
         return 'non-rpi'
     except subprocess.CalledProcessError:
+        raise ValueError("Error reading board version.")
 
-        raise ValueError("Error reading Raspberry Pi version.")
+def get_rpi_version():
+    """Legacy function for backward compatibility"""
+    version = get_board_version()
+    if version.startswith('rpi-'):
+        return version
+    elif version.startswith('jetson-'):
+        # Map Jetson versions to equivalent RPi performance tiers for compatibility
+        if 'orin' in version:
+            return 'rpi-5'  # Orin has high performance like RPi 5
+        elif 'xavier' in version:
+            return 'rpi-4'  # Xavier has good performance like RPi 4
+        else:
+            return 'rpi-4'  # Default to RPi 4 equivalent for other Jetsons
+    else:
+        return 'non-rpi'
 
 

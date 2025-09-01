@@ -1,0 +1,27 @@
+## OWL Jetson-specific requirements file ##
+# These are additional dependencies required for Jetson platforms
+
+# Jetson GPIO support
+Jetson.GPIO
+
+# TensorRT support for optimized ML inference (optional but recommended)
+# Note: TensorRT is typically pre-installed on Jetson devices with JetPack
+# tensorrt
+
+# Additional GPU acceleration libraries
+# cupy-cuda11x  # For CUDA acceleration (version depends on CUDA version)
+
+# GStreamer support for CSI cameras (usually pre-installed)
+# python-gst-1.0
+
+# NumPy optimized for ARM64
+numpy>=1.19.0
+
+# OpenCV with GStreamer support (may need custom build)
+# opencv-python>=4.5.0
+
+# Enhanced threading support
+psutil
+
+# Improved memory management
+py-cpuinfo

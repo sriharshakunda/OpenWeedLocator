@@ -1,9 +1,24 @@
-## OWL requirements file ##
-# OpenCV should be installed separately
+## OWL requirements file - Jetson Nano optimized ##
+# Core dependencies
 numpy
 imutils
-gpiozero
 pandas
-RPi.GPIO
 tqdm
 blessed
+
+# Jetson-specific GPIO library
+Jetson.GPIO; platform_machine=="aarch64"
+
+# System monitoring for Jetson
+psutil; platform_machine=="aarch64"
+jtop; platform_machine=="aarch64"
+
+# OpenCV for Jetson:
+# Usually pre-installed with JetPack, or build from source with GStreamer support
+# If needed: pip install opencv-python
+
+# YOLO ML dependencies (optional - for gog-ml algorithm)
+ultralytics  # Required for .pt YOLO models
+# onnxruntime  # Uncomment if using ONNX runtime instead of OpenCV DNN
+
+# Note: Raspberry Pi support has been removed from this version

@@ -1,0 +1,10 @@
+2025-08-30 19:21:51,772 - INFO - Starting OWL - checking imports...
+2025-08-30 19:21:51,895 - ERROR - Failed to import required module: imutils
+2025-08-30 19:21:51,896 - ERROR - Error details: No module named 'imutils'
+2025-08-30 19:21:51,896 - ERROR - Current virtual env: None
+2025-08-30 19:21:51,896 - ERROR - Current working directory: /home/ubuntu/OpenWeedLocator
+2025-08-31 03:45:05,593 - INFO - Starting OWL - checking imports...
+2025-08-31 03:45:05,720 - ERROR - Failed to import required module: imutils
+2025-08-31 03:45:05,720 - ERROR - Error details: No module named 'imutils'
+2025-08-31 03:45:05,720 - ERROR - Current virtual env: None
+2025-08-31 03:45:05,720 - ERROR - Current working directory: /home/ubuntu/OpenWeedLocator

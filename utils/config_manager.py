@@ -53,7 +53,15 @@ class ConfigValidator:
         },
         'Camera': {
             'required_keys': {'resolution_width', 'resolution_height'},
-            'optional_keys': {'exp_compensation'}
+            'optional_keys': {
+                'exp_compensation', 
+                'arducam_exposure', 
+                'arducam_green_factor', 
+                'arducam_red_factor', 
+                'arducam_blue_factor', 
+                'arducam_brightness_alpha', 
+                'arducam_brightness_beta'
+            }
         },
         'GreenOnBrown': {
             'required_keys': {
@@ -62,6 +70,24 @@ class ConfigValidator:
                 'min_detection_area'
             },
             'optional_keys': {'invert_hue'}
+        },
+        'GreenOnGreen': {
+            'required_keys': {
+                'hue_min', 'hue_max', 'saturation_min', 'saturation_max',
+                'value_min', 'value_max', 'min_detection_area', 'max_detection_area'
+            },
+            'optional_keys': {
+                'erode_iterations', 'dilate_iterations', 'blur_kernel', 'confidence'
+            }
+        },
+        'GreenOnGreenML': {
+            'required_keys': {
+                'crop_type', 'model_directory', 'confidence_threshold', 'nms_threshold',
+                'min_detection_area', 'max_detection_area'
+            },
+            'optional_keys': {
+                'input_size', 'target_classes'
+            }
         },
         'DataCollection': {
             'required_keys': {'sample_images', 'sample_method', 'save_directory'},
@@ -84,13 +110,34 @@ class ConfigValidator:
         # Hue values (0-180)
         'hue_min': ('int', 0, 180),
         'hue_max': ('int', 0, 180),
+        # HSV Value channel (0-255)
+        'value_min': ('int', 0, 255),
+        'value_max': ('int', 0, 255),
+        # Detection areas (pixels)
+        'min_detection_area': ('int', 1, 50000),
+        'max_detection_area': ('int', 1, 50000),
+        # Morphological operations
+        'erode_iterations': ('int', 0, 10),
+        'dilate_iterations': ('int', 0, 10),
+        'blur_kernel': ('int', 1, 15),
         # Resolution
         'resolution_width': ('int', 1, None),
         'resolution_height': ('int', 1, None),
         # Camera settings
         'exp_compensation': ('float', -10, 10),
+        # Arducam settings
+        'arducam_exposure': ('int', 100, 20000),
+        'arducam_green_factor': ('float', 0.1, 2.0),
+        'arducam_red_factor': ('float', 0.1, 2.0),
+        'arducam_blue_factor': ('float', 0.1, 2.0),
+        'arducam_brightness_alpha': ('float', 0.1, 3.0),
+        'arducam_brightness_beta': ('float', -100, 100),
         # Detection confidence
         'confidence': ('float', 0, 1),
+        'confidence_threshold': ('float', 0, 1),
+        'nms_threshold': ('float', 0, 1),
+        # YOLO input size
+        'input_size': ('int', 320, 1280),
         # GPIO pins
         'switch_pin': ('pin', 1, 40),
         'detection_mode_pin_up': ('pin', 1, 40),
@@ -99,7 +146,7 @@ class ConfigValidator:
         'sensitivity_pin': ('pin', 1, 40),
     }
 
-    VALID_ALGORITHMS = {'exg', 'exgr', 'maxg', 'nexg', 'exhsv', 'hsv', 'gndvi', 'gog'}
+    VALID_ALGORITHMS = {'exg', 'exgr', 'maxg', 'nexg', 'exhsv', 'hsv', 'gndvi', 'gog', 'gog-ml'}
     VALID_CONTROLLER_TYPES = {'none', 'ute', 'advanced'}
     VALID_SWITCH_PURPOSES = {'recording', 'sensitivity'}
 
@@ -339,11 +386,15 @@ class ConfigValidator:
         return True, {}, warnings
 
     @classmethod
-    def load_and_validate_config(cls, config_path: Path) -> ConfigParser:
+    def load_and_validate_config(cls, config_path) -> ConfigParser:
         """Load and validate configuration file."""
         config = ConfigParser()
         used_pins = set()
         validation_errors = {}
+
+        # Ensure config_path is a Path object
+        if isinstance(config_path, str):
+            config_path = Path(config_path)
 
         # File existence and parsing must still raise immediately
         # as we can't continue without a valid file

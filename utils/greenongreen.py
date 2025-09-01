@@ -8,6 +8,13 @@ from pathlib import Path
 
 import cv2
 
+# Try to import Jetson optimizations
+try:
+    from utils.jetson_optimization import get_jetson_optimizer
+    JETSON_OPTIMIZER = get_jetson_optimizer()
+except ImportError:
+    JETSON_OPTIMIZER = None
+
 
 class GreenOnGreen:
     def __init__(self, model_path='models', label_file='models/labels.txt'):
@@ -41,10 +48,24 @@ class GreenOnGreen:
                 print('[ERROR] No model files found.')
 
         self.labels = read_label_file(label_file)
-        self.interpreter = make_interpreter(self.model_path.as_posix())
+        
+        # Optimize model for Jetson if available
+        model_path_str = str(self.model_path)
+        if JETSON_OPTIMIZER:
+            model_path_str = JETSON_OPTIMIZER.optimize_tflite_model(model_path_str)
+            print(f'[INFO] Using Jetson-optimized model: {model_path_str}')
+        
+        self.interpreter = make_interpreter(model_path_str)
         self.interpreter.allocate_tensors()
         self.inference_size = input_size(self.interpreter)
         self.objects = None
+        
+        # Apply Jetson-specific optimizations
+        if JETSON_OPTIMIZER:
+            self.inference_config = JETSON_OPTIMIZER.get_optimal_inference_config()
+            print(f'[INFO] Jetson inference config: {self.inference_config}')
+        else:
+            self.inference_config = {'use_gpu': False, 'num_threads': 2}
 
     def inference(self, image, confidence=0.5, filter_id=0):
         cv2_im_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

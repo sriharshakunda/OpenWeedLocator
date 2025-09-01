@@ -15,14 +15,47 @@ import platform
 logger = logging.getLogger(__name__)
 
 def get_platform_config() -> tuple[bool, Optional[Exception]]:
-    """Determine platform and return testing status and lgpio error type"""
+    """Determine platform and return testing status and GPIO error type"""
     system_platform = platform.platform().lower()
-    is_raspberry_pi = 'rpi' in system_platform or 'aarch' in system_platform
+    
+    # Check for specific platform types
+    is_raspberry_pi = 'rpi' in system_platform
+    is_jetson = False
+    
+    # Check for Jetson devices
+    try:
+        with open('/proc/device-tree/model', 'r') as f:
+            model = f.read().strip().lower()
+            if 'jetson' in model:
+                is_jetson = True
+    except (FileNotFoundError, IOError):
+        # If we can't read the device tree, check for aarch64 (could be Jetson)
+        is_jetson = 'aarch' in system_platform and not is_raspberry_pi
 
     if is_raspberry_pi:
-        from gpiozero import Buzzer, OutputDevice, LED
-        import lgpio
-        return False, lgpio.error
+        try:
+            from gpiozero import Buzzer, OutputDevice, LED
+            import lgpio
+            logger.info("Using gpiozero for Raspberry Pi GPIO")
+            return False, lgpio.error
+        except ImportError as e:
+            logger.error(f"Failed to import Raspberry Pi GPIO libraries: {e}")
+            return True, None
+    
+    elif is_jetson:
+        try:
+            import Jetson.GPIO as GPIO
+            from gpiozero import Buzzer, OutputDevice, LED
+            # Configure gpiozero to use Jetson GPIO
+            from gpiozero.pins.jetson import JetsonNanoPin
+            from gpiozero import Device
+            Device.pin_factory = JetsonNanoPin()
+            logger.info("Using Jetson.GPIO for Jetson platform")
+            return False, Exception  # Jetson.GPIO uses generic Exception for errors
+        except (ImportError, Exception) as e:
+            logger.error(f"Failed to import Jetson.GPIO: {e}")
+            logger.warning("Please install Jetson.GPIO: sudo pip install Jetson.GPIO")
+            return True, None
 
     is_windows = platform.system() == "Windows"
     system_name = "Windows" if is_windows else "unrecognized"
